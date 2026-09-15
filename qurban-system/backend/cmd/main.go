@@ -93,6 +93,8 @@ func main() {
 	api.Get("/penerima", handlers.ListPenerima)
 	api.Post("/penerima", handlers.CreatePenerima)
 	api.Get("/penerima/:id/qr", handlers.GetPenerimaQR)
+	api.Get("/penerima/:id/sertifikat", handlers.SertifikatPenerima)
+	api.Get("/peta/penerima", handlers.PetaPenerima)
 
 	// Distribusi
 	api.Get("/distribusi", handlers.ListDistribusi)

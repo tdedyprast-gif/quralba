@@ -9,6 +9,7 @@ import Penerima from './pages/Penerima'
 import Distribusi from './pages/Distribusi'
 import QRScanner from './pages/QRScanner'
 import Reports from './pages/Reports'
+import Peta from './pages/Peta'
 
 function Protected({ children }) {
   const { user, loading } = useAuth()
@@ -28,6 +29,7 @@ export default function App() {
         <Route path="/penerima" element={<Penerima />} />
         <Route path="/distribusi" element={<Distribusi />} />
         <Route path="/scan" element={<QRScanner />} />
+        <Route path="/peta" element={<Peta />} />
         <Route path="/laporan" element={<Reports />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

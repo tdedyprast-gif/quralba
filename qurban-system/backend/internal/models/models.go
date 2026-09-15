@@ -45,6 +45,8 @@ type PenerimaDaging struct {
 	Alamat    string    `json:"alamat"`
 	Kategori  string    `json:"kategori"`
 	QRToken   string    `json:"qr_token"`
+	Latitude  *float64  `json:"latitude"`
+	Longitude *float64  `json:"longitude"`
 	CreatedAt time.Time `json:"created_at"`
 	Diambil   bool      `json:"diambil"`
 }

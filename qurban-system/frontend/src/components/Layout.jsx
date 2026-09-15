@@ -8,6 +8,7 @@ const nav = [
   { to: '/penerima', label: 'Penerima', icon: '📦' },
   { to: '/distribusi', label: 'Distribusi', icon: '📊' },
   { to: '/scan', label: 'Pemindai QR', icon: '📷' },
+  { to: '/peta', label: 'Peta Distribusi', icon: '🗺️' },
   { to: '/laporan', label: 'Laporan', icon: '📄' },
 ]
 

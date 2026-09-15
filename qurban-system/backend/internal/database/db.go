@@ -104,8 +104,14 @@ CREATE TABLE IF NOT EXISTS penerima_daging (
     alamat TEXT,
     kategori TEXT, -- 'fakir', 'miskin', 'tetangga', 'panitia'
     qr_token TEXT UNIQUE NOT NULL,
+    latitude DOUBLE PRECISION,
+    longitude DOUBLE PRECISION,
     created_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- Idempotent add for existing DBs
+ALTER TABLE penerima_daging ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION;
+ALTER TABLE penerima_daging ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
 
 CREATE TABLE IF NOT EXISTS distribusi (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

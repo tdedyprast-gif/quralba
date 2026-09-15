@@ -20,7 +20,8 @@ func randToken(n int) string {
 
 func ListPenerima(c *fiber.Ctx) error {
 	rows, err := database.Pool.Query(context.Background(), `
-		SELECT p.id, p.kode, p.nama, COALESCE(p.alamat,''), COALESCE(p.kategori,''), p.qr_token, p.created_at,
+		SELECT p.id, p.kode, p.nama, COALESCE(p.alamat,''), COALESCE(p.kategori,''), p.qr_token,
+		       p.latitude, p.longitude, p.created_at,
 		       CASE WHEN d.id IS NULL THEN false ELSE true END AS diambil
 		FROM penerima_daging p
 		LEFT JOIN distribusi d ON d.penerima_id = p.id
@@ -33,7 +34,7 @@ func ListPenerima(c *fiber.Ctx) error {
 	var out []models.PenerimaDaging
 	for rows.Next() {
 		var p models.PenerimaDaging
-		if err := rows.Scan(&p.ID, &p.Kode, &p.Nama, &p.Alamat, &p.Kategori, &p.QRToken, &p.CreatedAt, &p.Diambil); err != nil {
+		if err := rows.Scan(&p.ID, &p.Kode, &p.Nama, &p.Alamat, &p.Kategori, &p.QRToken, &p.Latitude, &p.Longitude, &p.CreatedAt, &p.Diambil); err != nil {
 			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 		}
 		out = append(out, p)
@@ -51,9 +52,9 @@ func CreatePenerima(c *fiber.Ctx) error {
 	}
 	p.QRToken = randToken(16)
 	err := database.Pool.QueryRow(context.Background(),
-		`INSERT INTO penerima_daging (kode, nama, alamat, kategori, qr_token)
-		 VALUES ($1,$2,$3,$4,$5) RETURNING id, created_at`,
-		p.Kode, p.Nama, p.Alamat, p.Kategori, p.QRToken).Scan(&p.ID, &p.CreatedAt)
+		`INSERT INTO penerima_daging (kode, nama, alamat, kategori, qr_token, latitude, longitude)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id, created_at`,
+		p.Kode, p.Nama, p.Alamat, p.Kategori, p.QRToken, p.Latitude, p.Longitude).Scan(&p.ID, &p.CreatedAt)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 	}

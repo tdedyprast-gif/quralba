@@ -24,6 +24,9 @@ export default function QRScanner() {
     }
   }
 
+  const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+  const sertifikatURL = (id) => `${apiBase}/api/penerima/${id}/sertifikat`
+
   const start = async () => {
     if (running) return
     const el = document.getElementById('qr-reader')
@@ -98,6 +101,12 @@ export default function QRScanner() {
             <div className="mt-2">
               <div className="text-lg font-bold text-primary-700">✓ Berhasil</div>
               <div className="text-sm">Penerima: <b>{lastResult.nama}</b> ({lastResult.kode})</div>
+              <a
+                href={sertifikatURL(lastResult.penerima_id)}
+                target="_blank" rel="noreferrer"
+                className="btn-primary mt-3 inline-flex"
+                data-testid="scan-sertifikat-link"
+              >📄 Unduh Sertifikat</a>
             </div>
           ) : (
             <div className="mt-2">

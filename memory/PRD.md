@@ -17,7 +17,7 @@ Bangun aplikasi manajemen ibadah qurban end-to-end untuk panitia masjid: pendaft
 ## Arsitektur & Skema DB
 Skema 6 tabel: `users`, `paket_sapi`, `peserta`, `penerima_daging`, `distribusi`, `transaksi_doit` (audit log webhook). Detail lengkap di `docs/ERD.md`. Auto-migrated saat backend start.
 
-## Implemented (Jan 2026 — v0.1)
+## Implemented (Jan 2026 — v0.2)
 - ✅ Auth JWT (register/login) + seed admin
 - ✅ CRUD Paket Sapi, Peserta, Penerima
 - ✅ Doit.id integration (client + webhook handler + HMAC signature verify + stub mode)
@@ -29,14 +29,15 @@ Skema 6 tabel: `users`, `paket_sapi`, `peserta`, `penerima_daging`, `distribusi`
 - ✅ Export XLSX (multi-sheet) & PDF (ringkasan)
 - ✅ Dashboard: stats + live feed
 - ✅ Dockerfile backend + frontend + docker-compose.yml
+- ✅ **Sertifikat Penerima PDF** (`GET /api/penerima/:id/sertifikat`) — A5 landscape, frame hijau, nama besar, TTD panitia; tombol unduh di halaman Penerima (setelah diambil) & di layar hasil scan
+- ✅ **Peta Distribusi** (`/peta`) — Leaflet + OpenStreetMap, marker hijau=sudah/kuning=belum, popup detail + tombol sertifikat, auto-refresh via WebSocket saat ada scan; kolom `latitude`/`longitude` di `penerima_daging` + tombol "Gunakan lokasi saya" (Geolocation API)
 
 ## Backlog / Next
 - P1: Multi-tenant per masjid
 - P1: Notifikasi WhatsApp / email saat status lunas (integrasi Twilio/Fonnte)
-- P1: Sertifikat digital penerima daging (PDF per orang)
 - P2: Role granular (bendahara vs koord distribusi)
-- P2: Peta distribusi (geolokasi penerima)
 - P2: Landing page publik untuk pendaftaran mandiri shohibul
+- P2: Geocoding otomatis dari `alamat` (Nominatim / Google Geocoding)
 
 ## Cara Menjalankan
 ```bash
