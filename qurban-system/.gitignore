@@ -1,0 +1,26 @@
+# dependencies
+node_modules
+dist
+build
+
+# env
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# go
+backend/bin
+backend/server
+*.exe
+
+# ide
+.idea
+.vscode
+.DS_Store
+
+# docker
+*.log
+
+# postgres data
+qurban_pg/

@@ -1,0 +1,57 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: qurban_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: qurban
+      POSTGRES_PASSWORD: qurban
+      POSTGRES_DB: qurban
+    ports:
+      - "5432:5432"
+    volumes:
+      - qurban_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qurban -d qurban"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: qurban_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: "8080"
+      DATABASE_URL: "postgres://qurban:qurban@db:5432/qurban?sslmode=disable"
+      JWT_SECRET: "ganti-dengan-rahasia-panjang-min-32-char"
+      ADMIN_EMAIL: "admin@qurban.local"
+      ADMIN_PASS: "admin123"
+      DOIT_API_KEY: "SANDBOX_KEY_REPLACE_ME"
+      DOIT_BASE_URL: "https://api.doit.id/v1"
+      DOIT_WEBHOOK_SECRET: "SANDBOX_WEBHOOK_SECRET"
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: "http://localhost:8080"
+    container_name: qurban_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+
+volumes:
+  qurban_pg:
