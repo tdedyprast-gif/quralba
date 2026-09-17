@@ -8,7 +8,26 @@ type User struct {
 	PasswordHash string    `json:"-"`
 	Nama         string    `json:"nama"`
 	Role         string    `json:"role"`
+	Status       string    `json:"status"`
+	NoHP         string    `json:"no_hp"`
+	Alamat       string    `json:"alamat"`
+	PaketID      *string   `json:"paket_id"`
+	RejectReason string    `json:"reject_reason,omitempty"`
 	CreatedAt    time.Time `json:"created_at"`
+}
+
+type Pembayaran struct {
+	ID          string    `json:"id"`
+	PesertaID   string    `json:"peserta_id"`
+	Amount      float64   `json:"amount"`
+	Metode      string    `json:"metode"`
+	Referensi   string    `json:"referensi"`
+	Catatan     string    `json:"catatan"`
+	PetugasID   *string   `json:"petugas_id"`
+	PaidAt      time.Time `json:"paid_at"`
+	CreatedAt   time.Time `json:"created_at"`
+	NamaPeserta string    `json:"nama_peserta,omitempty"`
+	NamaPetugas string    `json:"nama_petugas,omitempty"`
 }
 
 type PaketSapi struct {
@@ -18,6 +37,7 @@ type PaketSapi struct {
 	MaxShohibul   int       `json:"max_shohibul"`
 	HargaPerOrang float64   `json:"harga_per_orang"`
 	Deskripsi     string    `json:"deskripsi"`
+	Gambar        string    `json:"gambar"`
 	CreatedAt     time.Time `json:"created_at"`
 }
 
@@ -44,6 +64,7 @@ type PenerimaDaging struct {
 	Nama      string    `json:"nama"`
 	Alamat    string    `json:"alamat"`
 	Kategori  string    `json:"kategori"`
+	NoHP      string    `json:"no_hp"`
 	QRToken   string    `json:"qr_token"`
 	Latitude  *float64  `json:"latitude"`
 	Longitude *float64  `json:"longitude"`

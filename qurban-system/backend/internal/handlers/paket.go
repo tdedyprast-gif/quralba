@@ -11,7 +11,7 @@ import (
 
 func ListPaket(c *fiber.Ctx) error {
 	rows, err := database.Pool.Query(context.Background(),
-		`SELECT id, nama, jenis, max_shohibul, harga_per_orang, COALESCE(deskripsi,''), created_at FROM paket_sapi ORDER BY created_at DESC`)
+		`SELECT id, nama, jenis, max_shohibul, harga_per_orang, COALESCE(deskripsi,''), gambar, created_at FROM paket_sapi ORDER BY created_at DESC`)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -19,7 +19,7 @@ func ListPaket(c *fiber.Ctx) error {
 	var out []models.PaketSapi
 	for rows.Next() {
 		var p models.PaketSapi
-		if err := rows.Scan(&p.ID, &p.Nama, &p.Jenis, &p.MaxShohibul, &p.HargaPerOrang, &p.Deskripsi, &p.CreatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.Nama, &p.Jenis, &p.MaxShohibul, &p.HargaPerOrang, &p.Deskripsi, &p.Gambar, &p.CreatedAt); err != nil {
 			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 		}
 		out = append(out, p)
@@ -36,9 +36,9 @@ func CreatePaket(c *fiber.Ctx) error {
 		p.MaxShohibul = 1
 	}
 	err := database.Pool.QueryRow(context.Background(),
-		`INSERT INTO paket_sapi (nama, jenis, max_shohibul, harga_per_orang, deskripsi)
-		 VALUES ($1,$2,$3,$4,$5) RETURNING id, created_at`,
-		p.Nama, p.Jenis, p.MaxShohibul, p.HargaPerOrang, p.Deskripsi).Scan(&p.ID, &p.CreatedAt)
+		`INSERT INTO paket_sapi (nama, jenis, max_shohibul, harga_per_orang, deskripsi, gambar)
+		 VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, created_at`,
+		p.Nama, p.Jenis, p.MaxShohibul, p.HargaPerOrang, p.Deskripsi, p.Gambar).Scan(&p.ID, &p.CreatedAt)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -52,8 +52,8 @@ func UpdatePaket(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "invalid body"})
 	}
 	_, err := database.Pool.Exec(context.Background(),
-		`UPDATE paket_sapi SET nama=$1, jenis=$2, max_shohibul=$3, harga_per_orang=$4, deskripsi=$5 WHERE id=$6`,
-		p.Nama, p.Jenis, p.MaxShohibul, p.HargaPerOrang, p.Deskripsi, id)
+		`UPDATE paket_sapi SET nama=$1, jenis=$2, max_shohibul=$3, harga_per_orang=$4, deskripsi=$5, gambar=$6 WHERE id=$7`,
+		p.Nama, p.Jenis, p.MaxShohibul, p.HargaPerOrang, p.Deskripsi, p.Gambar, id)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 	}

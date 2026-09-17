@@ -25,3 +25,19 @@ func JWTProtected() fiber.Handler {
 		return c.Next()
 	}
 }
+
+// RequireRole membatasi akses hanya untuk role tertentu.
+// Harus dipakai setelah JWTProtected().
+func RequireRole(roles ...string) fiber.Handler {
+	allowed := make(map[string]bool, len(roles))
+	for _, r := range roles {
+		allowed[r] = true
+	}
+	return func(c *fiber.Ctx) error {
+		role, _ := c.Locals("role").(string)
+		if !allowed[role] {
+			return c.Status(403).JSON(fiber.Map{"error": "akses ditolak untuk role " + role})
+		}
+		return c.Next()
+	}
+}

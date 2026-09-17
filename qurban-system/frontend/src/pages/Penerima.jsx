@@ -3,13 +3,20 @@ import { api } from '../services/api'
 import { QRCodeCanvas } from 'qrcode.react'
 import toast from 'react-hot-toast'
 
+const KATEGORI = ['fakir', 'miskin', 'tetangga', 'panitia', 'penerima']
+const emptyForm = { nama: '', alamat: '', kategori: 'fakir', no_hp: '', latitude: '', longitude: '' }
+
 export default function Penerima() {
   const [items, setItems] = useState([])
-  const [form, setForm] = useState({ nama: '', alamat: '', kategori: 'fakir', latitude: '', longitude: '' })
+  const [form, setForm] = useState(emptyForm)
+  const [editing, setEditing] = useState(null)
   const [showQR, setShowQR] = useState(null)
+  const [search, setSearch] = useState('')
 
   const load = () => api.get('/api/penerima').then(r => setItems(r.data || []))
   useEffect(() => { load() }, [])
+
+  const reset = () => { setForm(emptyForm); setEditing(null) }
 
   const submit = async (e) => {
     e.preventDefault()
@@ -19,11 +26,31 @@ export default function Penerima() {
         latitude: form.latitude === '' ? null : Number(form.latitude),
         longitude: form.longitude === '' ? null : Number(form.longitude),
       }
-      await api.post('/api/penerima', payload)
-      toast.success('Ditambahkan')
-      setForm({ nama: '', alamat: '', kategori: 'fakir', latitude: '', longitude: '' })
-      load()
-    } catch (err) { toast.error(err.response?.data?.error || 'Gagal') }
+      if (editing) {
+        await api.put(`/api/penerima/${editing}`, payload)
+        toast.success('Data penerima diperbarui')
+      } else {
+        await api.post('/api/penerima', payload)
+        toast.success('Penerima ditambahkan')
+      }
+      reset(); load()
+    } catch (err) { toast.error(err.response?.data?.error || 'Gagal menyimpan') }
+  }
+
+  const edit = (p) => {
+    setEditing(p.id)
+    setForm({
+      nama: p.nama, alamat: p.alamat || '', kategori: p.kategori || 'fakir',
+      no_hp: p.no_hp || '',
+      latitude: p.latitude ?? '', longitude: p.longitude ?? '',
+    })
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const hapus = async (p) => {
+    if (!confirm(`Hapus penerima "${p.nama}"? Riwayat distribusinya ikut terhapus.`)) return
+    try { await api.delete(`/api/penerima/${p.id}`); toast.success('Dihapus'); load() }
+    catch (err) { toast.error(err.response?.data?.error || 'Gagal menghapus') }
   }
 
   const showQRFor = async (id) => {
@@ -35,9 +62,24 @@ export default function Penerima() {
     const fd = new FormData(); fd.append('file', file)
     try {
       const r = await api.post('/api/import/penerima', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
-      toast.success(`Import ${r.data.inserted} baris`); load()
-    } catch (err) { toast.error('Gagal import') }
+      const d = r.data
+      toast.success(`Import selesai — ${d.inserted} masuk, ${d.skipped || 0} dilewati, ${d.failed || 0} gagal`)
+      load()
+    } catch (err) { toast.error(err.response?.data?.error || 'Gagal import') }
     e.target.value = ''
+  }
+
+  const downloadTemplate = async () => {
+    try {
+      const r = await api.get('/api/import/template/penerima', { responseType: 'blob' })
+      const url = window.URL.createObjectURL(new Blob([r.data]))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'template-import-penerima.xlsx'
+      document.body.appendChild(a); a.click(); a.remove()
+      window.URL.revokeObjectURL(url)
+      toast.success('Template diunduh')
+    } catch (err) { toast.error('Gagal mengunduh template') }
   }
 
   const useMyLocation = () => {
@@ -52,81 +94,110 @@ export default function Penerima() {
     )
   }
 
-  const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+  const apiBase = import.meta.env.VITE_API_URL ?? ''
   const sertifikatURL = (id) => `${apiBase}/api/penerima/${id}/sertifikat`
+
+  const filtered = items.filter(p =>
+    !search || p.nama.toLowerCase().includes(search.toLowerCase()) || (p.kode || '').toLowerCase().includes(search.toLowerCase())
+  )
 
   return (
     <div className="space-y-6" data-testid="penerima-page">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-extrabold">Penerima Daging</h1>
-        <label className="btn-outline cursor-pointer">
-          📥 Import XLSX
-          <input type="file" accept=".xlsx" className="hidden" onChange={importFile} />
-        </label>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-extrabold">Data Penerima Daging</h1>
+          <p className="text-sm text-slate-500">Kelola data penerima, cetak QR, dan import massal dari Excel.</p>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={downloadTemplate} className="btn-outline" data-testid="penerima-template">
+            📄 Template Excel
+          </button>
+          <label className="btn-outline cursor-pointer">
+            📥 Import XLSX
+            <input type="file" accept=".xlsx" className="hidden" onChange={importFile} data-testid="penerima-import" />
+          </label>
+        </div>
       </div>
 
-      <form onSubmit={submit} className="card grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
-        <div className="md:col-span-2"><label className="label">Nama</label><input required className="input" value={form.nama} onChange={e => setForm({ ...form, nama: e.target.value })} data-testid="penerima-nama" /></div>
-        <div className="md:col-span-2"><label className="label">Alamat</label><input className="input" value={form.alamat} onChange={e => setForm({ ...form, alamat: e.target.value })} /></div>
-        <div><label className="label">Kategori</label>
+      <form onSubmit={submit} className="card grid grid-cols-1 md:grid-cols-6 gap-3 items-end" data-testid="penerima-form">
+        <div className="md:col-span-2">
+          <label className="label">Nama *</label>
+          <input required className="input" value={form.nama} onChange={e => setForm({ ...form, nama: e.target.value })} data-testid="penerima-nama" />
+        </div>
+        <div>
+          <label className="label">Kategori</label>
           <select className="input" value={form.kategori} onChange={e => setForm({ ...form, kategori: e.target.value })}>
-            <option>fakir</option><option>miskin</option><option>tetangga</option><option>panitia</option>
+            {KATEGORI.map(k => <option key={k} value={k}>{k}</option>)}
           </select>
         </div>
         <div>
+          <label className="label">No. HP</label>
+          <input className="input" value={form.no_hp} onChange={e => setForm({ ...form, no_hp: e.target.value })} />
+        </div>
+        <div className="md:col-span-2">
+          <label className="label">Alamat</label>
+          <input className="input" value={form.alamat} onChange={e => setForm({ ...form, alamat: e.target.value })} />
+        </div>
+        <div>
           <label className="label">Latitude</label>
-          <input className="input" type="number" step="any" value={form.latitude} onChange={e => setForm({ ...form, latitude: e.target.value })} placeholder="-6.2088" />
+          <input className="input" value={form.latitude} onChange={e => setForm({ ...form, latitude: e.target.value })} placeholder="-6.917464" />
         </div>
         <div>
           <label className="label">Longitude</label>
-          <input className="input" type="number" step="any" value={form.longitude} onChange={e => setForm({ ...form, longitude: e.target.value })} placeholder="106.8456" />
+          <input className="input" value={form.longitude} onChange={e => setForm({ ...form, longitude: e.target.value })} placeholder="107.619123" />
         </div>
-        <button type="button" onClick={useMyLocation} className="btn-outline justify-center" data-testid="penerima-lokasi">📍 Gunakan lokasi saya</button>
-        <div></div>
-        <button className="btn-primary justify-center" data-testid="penerima-submit">Tambah Penerima</button>
+        <button type="button" onClick={useMyLocation} className="btn-outline justify-center">📍 Lokasi saya</button>
+        <button className="btn-primary justify-center" data-testid="penerima-submit">{editing ? 'Perbarui' : 'Tambah'}</button>
+        {editing && <button type="button" onClick={reset} className="btn-outline justify-center">Batal</button>}
       </form>
 
       <div className="card overflow-x-auto">
+        <div className="flex items-center justify-between mb-3 gap-3">
+          <div className="font-bold">Daftar Penerima <span className="text-slate-400 font-normal">({filtered.length})</span></div>
+          <input className="input max-w-xs" placeholder="Cari nama / kode…" value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
         <table className="w-full text-sm">
           <thead className="text-slate-500 text-left">
-            <tr><th className="py-2">Kode</th><th>Nama</th><th>Alamat</th><th>Kategori</th><th>Lokasi</th><th>Status</th><th></th></tr>
+            <tr><th className="py-2">Kode</th><th>Nama</th><th>Kategori</th><th>Kontak</th><th>Alamat</th><th>Status</th><th className="text-right">Aksi</th></tr>
           </thead>
           <tbody>
-            {items.map(p => (
+            {filtered.map(p => (
               <tr key={p.id} className="border-t border-slate-100">
-                <td className="py-2 font-mono">{p.kode}</td>
+                <td className="py-2 text-xs font-mono">{p.kode}</td>
                 <td className="font-semibold">{p.nama}</td>
-                <td>{p.alamat}</td>
-                <td>{p.kategori}</td>
-                <td className="text-xs">
-                  {p.latitude != null && p.longitude != null
-                    ? <span className="text-slate-500">{Number(p.latitude).toFixed(4)}, {Number(p.longitude).toFixed(4)}</span>
-                    : <span className="text-slate-400">—</span>}
+                <td><span className="badge bg-slate-100 text-slate-700">{p.kategori || '-'}</span></td>
+                <td className="text-xs">{p.no_hp || '-'}</td>
+                <td className="text-xs max-w-[220px]">{p.alamat || '-'}</td>
+                <td>
+                  {p.diambil
+                    ? <span className="badge bg-green-100 text-green-700">Sudah ambil</span>
+                    : <span className="badge bg-amber-100 text-amber-700">Belum</span>}
                 </td>
-                <td>{p.diambil ? <span className="badge bg-green-100 text-green-700">Diambil</span> : <span className="badge bg-slate-100 text-slate-600">Belum</span>}</td>
-                <td className="text-right space-x-2 whitespace-nowrap">
-                  <button onClick={() => showQRFor(p.id)} className="btn-outline text-xs">QR</button>
+                <td className="text-right whitespace-nowrap">
+                  <button onClick={() => showQRFor(p.id)} className="text-primary-700 text-xs font-semibold" data-testid={`qr-${p.id}`}>QR</button>
                   {p.diambil && (
-                    <a href={sertifikatURL(p.id)} target="_blank" rel="noreferrer" className="btn-outline text-xs" data-testid={`sertifikat-${p.id}`}>📄 Sertifikat</a>
+                    <a href={sertifikatURL(p.id)} target="_blank" rel="noreferrer" className="text-primary-700 text-xs font-semibold ml-3">Sertifikat</a>
                   )}
+                  <button onClick={() => edit(p)} className="text-slate-600 text-xs font-semibold ml-3">Edit</button>
+                  <button onClick={() => hapus(p)} className="text-red-600 text-xs font-semibold ml-3">Hapus</button>
                 </td>
               </tr>
             ))}
-            {items.length === 0 && <tr><td colSpan={7} className="text-center py-6 text-slate-500">Belum ada.</td></tr>}
+            {filtered.length === 0 && <tr><td colSpan={7} className="text-center py-6 text-slate-500">Belum ada penerima.</td></tr>}
           </tbody>
         </table>
       </div>
 
       {showQR && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={() => setShowQR(null)}>
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full text-center" onClick={e => e.stopPropagation()}>
-            <div className="text-lg font-bold">{showQR.nama}</div>
-            <div className="text-sm text-slate-500 mb-4">{showQR.kode}</div>
-            <div className="grid place-items-center">
-              <QRCodeCanvas value={showQR.qr_value} size={220} />
+        <div className="fixed inset-0 bg-black/40 grid place-items-center p-4 z-50" onClick={() => setShowQR(null)}>
+          <div className="card text-center" onClick={e => e.stopPropagation()} data-testid="qr-modal">
+            <div className="font-bold">{showQR.nama}</div>
+            <div className="text-xs text-slate-500 mb-3">{showQR.kode}</div>
+            <div className="bg-white p-3 inline-block rounded-lg">
+              <QRCodeCanvas value={showQR.qr_value} size={200} />
             </div>
-            <div className="text-xs mt-3 font-mono break-all">{showQR.qr_value}</div>
-            <button className="btn-primary mt-4 w-full justify-center" onClick={() => window.print()}>Cetak</button>
+            <div className="text-xs text-slate-400 mt-3 break-all max-w-[240px]">{showQR.qr_value}</div>
+            <button onClick={() => setShowQR(null)} className="btn-outline w-full mt-4 justify-center">Tutup</button>
           </div>
         </div>
       )}

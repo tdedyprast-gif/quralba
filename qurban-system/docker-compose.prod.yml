@@ -1,0 +1,16 @@
+# Production docker-compose override
+# Pulls pre-built images from GHCR instead of building locally.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+version: "3.9"
+
+services:
+  backend:
+    image: ghcr.io/${GHCR_OWNER:-your-org}/qurban-backend:latest
+    build: !reset null
+
+  frontend:
+    image: ghcr.io/${GHCR_OWNER:-your-org}/qurban-frontend:latest
+    build: !reset null
+    build:
+      args:
+        VITE_API_URL: ${VITE_API_URL:-https://api.qurban.local}

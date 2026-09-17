@@ -39,6 +39,7 @@ export default function Paket() {
         <div><label className="label">Max Orang</label><input type="number" className="input" value={form.max_shohibul} onChange={e => setForm({ ...form, max_shohibul: e.target.value })} /></div>
         <div><label className="label">Harga/orang</label><input type="number" className="input" value={form.harga_per_orang} onChange={e => setForm({ ...form, harga_per_orang: e.target.value })} /></div>
         <div className="md:col-span-4"><label className="label">Deskripsi</label><input className="input" value={form.deskripsi} onChange={e => setForm({ ...form, deskripsi: e.target.value })} /></div>
+        <div className="md:col-span-4"><label className="label">Gambar (URL)</label><input type="text" className="input" value={form.gambar} onChange={e => setForm({ ...form, gambar: e.target.value })} placeholder="https://example.com/gambar.jpg" /></div>
         <button className="btn-primary justify-center" data-testid="paket-submit">Tambah</button>
       </form>
 

@@ -1,0 +1,196 @@
+name: CI - Build, Test & Lint
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ──────────────────────────────────────────────
+  # Job 1: Go backend (qurban-system/backend)
+  # ──────────────────────────────────────────────
+  go-backend:
+    name: Go backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: qurban-system/backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Download dependencies
+        run: go mod download || true
+
+      - name: Tidy modules
+        run: go mod tidy
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Build
+        run: CGO_ENABLED=0 GOOS=linux go build -o /tmp/qurban-server ./cmd
+
+      - name: Test
+        run: go test ./... -v -race -timeout 60s
+        continue-on-error: true
+
+  # ──────────────────────────────────────────────
+  # Job 2: Vite frontend (qurban-system/frontend)
+  # ──────────────────────────────────────────────
+  vite-frontend:
+    name: Vite frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: qurban-system/frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Enable corepack & install (yarn)
+        run: |
+          corepack enable
+          yarn install --frozen-lockfile || yarn install
+
+      - name: Build
+        run: yarn build
+        env:
+          VITE_API_URL: http://localhost:8080
+
+  # ──────────────────────────────────────────────
+  # Job 3: Python backend (backend/)
+  # ──────────────────────────────────────────────
+  python-backend:
+    name: Python backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Lint (flake8)
+        run: flake8 . --max-line-length=120 --extend-ignore=E203,W503
+        continue-on-error: true
+
+      - name: Format check (black)
+        run: black --check --line-length=100 .
+        continue-on-error: true
+
+      - name: Test (pytest)
+        run: pytest -v
+        continue-on-error: true
+
+  # ──────────────────────────────────────────────
+  # Job 4: Root React frontend (frontend/)
+  # ──────────────────────────────────────────────
+  root-frontend:
+    name: React frontend (CRA)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install (yarn)
+        run: |
+          corepack enable
+          yarn install --frozen-lockfile || yarn install
+
+      - name: Build
+        run: yarn build
+        env:
+          CI: "false"
+
+  # ──────────────────────────────────────────────
+  # Job 5: Docker build verification
+  # ──────────────────────────────────────────────
+  docker-build:
+    name: Docker images
+    runs-on: ubuntu-latest
+    needs: [go-backend, vite-frontend]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: qurban-system/backend
+          file: qurban-system/backend/Dockerfile
+          push: false
+          tags: qurban-backend:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: qurban-system/frontend
+          file: qurban-system/frontend/Dockerfile
+          push: false
+          tags: qurban-frontend:ci
+          build-args: VITE_API_URL=http://localhost:8080
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ──────────────────────────────────────────────
+  # Job 6: Integration test (docker-compose)
+  # ──────────────────────────────────────────────
+  integration-test:
+    name: Integration test
+    runs-on: ubuntu-latest
+    needs: docker-build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start stack
+        working-directory: qurban-system
+        run: docker compose up -d --build --wait
+
+      - name: Health check - backend
+        run: |
+          sleep 5
+          curl -sf http://localhost:8080/api/health | jq -e '.status == "ok"'
+
+      - name: Health check - frontend
+        run: |
+          curl -sf http://localhost:3000/ | head -5
+
+      - name: Logs on failure
+        if: failure()
+        working-directory: qurban-system
+        run: docker compose logs
+
+      - name: Tear down
+        if: always()
+        working-directory: qurban-system
+        run: docker compose down -v

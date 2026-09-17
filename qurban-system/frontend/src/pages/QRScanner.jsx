@@ -24,7 +24,7 @@ export default function QRScanner() {
     }
   }
 
-  const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+  const apiBase = import.meta.env.VITE_API_URL ?? ''
   const sertifikatURL = (id) => `${apiBase}/api/penerima/${id}/sertifikat`
 
   const start = async () => {

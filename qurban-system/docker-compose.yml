@@ -1,20 +1,18 @@
-version: "3.9"
-
 services:
   db:
     image: postgres:16-alpine
     container_name: qurban_db
     restart: unless-stopped
+    env_file: .env
     environment:
-      POSTGRES_USER: qurban
-      POSTGRES_PASSWORD: qurban
-      POSTGRES_DB: qurban
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    # ports tidak dibuka ke host — backend akses via internal network
     volumes:
       - qurban_pg:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U qurban -d qurban"]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -28,15 +26,16 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    env_file: .env
     environment:
-      PORT: "8080"
-      DATABASE_URL: "postgres://qurban:qurban@db:5432/qurban?sslmode=disable"
-      JWT_SECRET: "ganti-dengan-rahasia-panjang-min-32-char"
-      ADMIN_EMAIL: "admin@qurban.local"
-      ADMIN_PASS: "admin123"
-      DOIT_API_KEY: "SANDBOX_KEY_REPLACE_ME"
-      DOIT_BASE_URL: "https://api.doit.id/v1"
-      DOIT_WEBHOOK_SECRET: "SANDBOX_WEBHOOK_SECRET"
+      PORT: ${PORT}
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASS: ${ADMIN_PASS}
+      DOIT_API_KEY: ${DOIT_API_KEY}
+      DOIT_BASE_URL: ${DOIT_BASE_URL}
+      DOIT_WEBHOOK_SECRET: ${DOIT_WEBHOOK_SECRET}
     ports:
       - "8080:8080"
 
@@ -45,7 +44,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: "http://localhost:8080"
+        VITE_API_URL: ${VITE_API_URL}
     container_name: qurban_frontend
     restart: unless-stopped
     depends_on:

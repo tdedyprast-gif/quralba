@@ -87,7 +87,7 @@ export default function Peta() {
                   </div>
                   {it.diambil && (
                     <a
-                      href={`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/penerima/${it.id}/sertifikat`}
+                      href={`${import.meta.env.VITE_API_URL ?? ''}/api/penerima/${it.id}/sertifikat`}
                       target="_blank" rel="noreferrer"
                       className="inline-block mt-2 text-primary-700 font-semibold"
                     >📄 Unduh Sertifikat</a>

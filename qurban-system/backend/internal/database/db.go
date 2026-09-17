@@ -71,6 +71,20 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Kolom tambahan untuk registrasi mandiri + validasi admin
+ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS no_hp TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS alamat TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS paket_id UUID;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS approved_by UUID;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS reject_reason TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS peserta_id UUID;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS penerima_id UUID;
+
+CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);
+CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+
 CREATE TABLE IF NOT EXISTS paket_sapi (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     nama TEXT NOT NULL,
@@ -78,6 +92,7 @@ CREATE TABLE IF NOT EXISTS paket_sapi (
     max_shohibul INT NOT NULL DEFAULT 1,
     harga_per_orang NUMERIC(14,2) NOT NULL,
     deskripsi TEXT,
+    gambar TEXT,
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -112,6 +127,7 @@ CREATE TABLE IF NOT EXISTS penerima_daging (
 -- Idempotent add for existing DBs
 ALTER TABLE penerima_daging ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION;
 ALTER TABLE penerima_daging ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
+ALTER TABLE penerima_daging ADD COLUMN IF NOT EXISTS no_hp TEXT;
 
 CREATE TABLE IF NOT EXISTS distribusi (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -133,6 +149,21 @@ CREATE TABLE IF NOT EXISTS transaksi_doit (
     received_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Pencatatan pembayaran manual oleh panitia bendahara
+CREATE TABLE IF NOT EXISTS pembayaran (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    peserta_id UUID NOT NULL REFERENCES peserta(id) ON DELETE CASCADE,
+    amount NUMERIC(14,2) NOT NULL,
+    metode TEXT NOT NULL DEFAULT 'tunai', -- 'tunai','transfer','qris','doit'
+    referensi TEXT,
+    catatan TEXT,
+    petugas_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    paid_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
 CREATE INDEX IF NOT EXISTS idx_peserta_paket ON peserta(paket_id);
 CREATE INDEX IF NOT EXISTS idx_trx_peserta ON transaksi_doit(peserta_id);
+CREATE INDEX IF NOT EXISTS idx_pembayaran_peserta ON pembayaran(peserta_id);
+CREATE INDEX IF NOT EXISTS idx_pembayaran_paid_at ON pembayaran(paid_at);
 `
