@@ -10,8 +10,11 @@ import (
 )
 
 func ListPaket(c *fiber.Ctx) error {
-	rows, err := database.Pool.Query(context.Background(),
-		`SELECT id, nama, jenis, max_shohibul, harga_per_orang, COALESCE(deskripsi,''), gambar, created_at FROM paket_sapi ORDER BY created_at DESC`)
+	rows, err := database.Pool.Query(context.Background(), `
+		SELECT pk.id, pk.nama, pk.jenis, pk.max_shohibul, pk.harga_per_orang,
+		       COALESCE(pk.deskripsi,''), COALESCE(pk.gambar,''), pk.created_at,
+		       (SELECT COUNT(*) FROM peserta p WHERE p.paket_id = pk.id) AS terisi
+		FROM paket_sapi pk ORDER BY pk.created_at DESC`)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -19,7 +22,8 @@ func ListPaket(c *fiber.Ctx) error {
 	var out []models.PaketSapi
 	for rows.Next() {
 		var p models.PaketSapi
-		if err := rows.Scan(&p.ID, &p.Nama, &p.Jenis, &p.MaxShohibul, &p.HargaPerOrang, &p.Deskripsi, &p.Gambar, &p.CreatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.Nama, &p.Jenis, &p.MaxShohibul, &p.HargaPerOrang,
+			&p.Deskripsi, &p.Gambar, &p.CreatedAt, &p.Terisi); err != nil {
 			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 		}
 		out = append(out, p)

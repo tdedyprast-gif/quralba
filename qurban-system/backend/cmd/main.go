@@ -59,6 +59,9 @@ func main() {
 	// Info publik (untuk halaman pendaftaran)
 	app.Get("/api/public/paket", handlers.ListPaket)
 
+	// File publik (gambar paket) — disajikan langsung dari folder ./uploads
+	app.Static("/uploads", "./uploads")
+
 	// Public webhook (doit.id callback)
 	app.Post("/api/webhook/doit", handlers.DoitWebhook)
 
@@ -72,69 +75,80 @@ func main() {
 	app.Get("/ws/distribusi", fws.New(ws.DistribusiSocket(hub)))
 
 	// ── Protected (butuh login) ──
+	// Catatan: guard role dipasang PER-ROUTE, bukan lewat Group("", mw).
+	// Group("") mendaftarkan middleware Use("/api") yang berlaku lintas route
+	// dan urutannya bergantung urutan registrasi — mudah bocor antar role.
 	api := app.Group("/api", middleware.JWTProtected())
 
 	api.Get("/me", handlers.Me)
 	api.Get("/saya", handlers.Saya) // self-service untuk semua role
 
-	// ── Admin: validasi & kelola akun ──
-	admin := api.Group("/admin", middleware.RequireRole("admin"))
-	admin.Get("/users", handlers.ListUsers)
-	admin.Post("/users", handlers.CreateUser)
-	admin.Put("/users/:id", handlers.UpdateUser)
-	admin.Get("/stats", handlers.AdminStats)
-	admin.Post("/users/:id/approve", handlers.ApproveUser)
-	admin.Post("/users/:id/reject", handlers.RejectUser)
+	// ── Self-service peserta: pilih / daftar paket qurban sendiri ──
+	pesertaOnly := middleware.RequireRole("peserta")
+	api.Get("/saya/paket", pesertaOnly, handlers.PaketSaya)
+	api.Post("/saya/paket", pesertaOnly, handlers.PilihPaketSaya)
 
-	// ── Panitia bendahara: paket + pencatatan pembayaran ──
-	bendahara := api.Group("", middleware.RequireRole("admin", "bendahara"))
+	// ── Admin: validasi & kelola akun ──
+	adminOnly := middleware.RequireRole("admin")
+	api.Get("/admin/users", adminOnly, handlers.ListUsers)
+	api.Post("/admin/users", adminOnly, handlers.CreateUser)
+	api.Put("/admin/users/:id", adminOnly, handlers.UpdateUser)
+	api.Get("/admin/stats", adminOnly, handlers.AdminStats)
+	api.Post("/admin/users/:id/approve", adminOnly, handlers.ApproveUser)
+	api.Post("/admin/users/:id/reject", adminOnly, handlers.RejectUser)
+
+	// ── Panitia bendahara: paket + peserta + pencatatan pembayaran ──
+	kasir := middleware.RequireRole("admin", "bendahara")
 
 	// Paket sapi
-	bendahara.Get("/paket", handlers.ListPaket)
-	bendahara.Post("/paket", handlers.CreatePaket)
-	bendahara.Put("/paket/:id", handlers.UpdatePaket)
-	bendahara.Delete("/paket/:id", handlers.DeletePaket)
+	api.Get("/paket", kasir, handlers.ListPaket)
+	api.Post("/paket", kasir, handlers.CreatePaket)
+	api.Put("/paket/:id", kasir, handlers.UpdatePaket)
+	api.Delete("/paket/:id", kasir, handlers.DeletePaket)
+
+	// Upload gambar paket (folder publik ./uploads/paket)
+	api.Post("/upload/paket", kasir, handlers.UploadPaketImage)
 
 	// Peserta / shohibul qurban
-	bendahara.Get("/peserta", handlers.ListPeserta)
-	bendahara.Post("/peserta", handlers.CreatePeserta)
-	bendahara.Get("/peserta/:id", handlers.GetPeserta)
-	bendahara.Put("/peserta/:id", handlers.UpdatePeserta)
-	bendahara.Delete("/peserta/:id", handlers.DeletePeserta)
+	api.Get("/peserta", kasir, handlers.ListPeserta)
+	api.Post("/peserta", kasir, handlers.CreatePeserta)
+	api.Get("/peserta/:id", kasir, handlers.GetPeserta)
+	api.Put("/peserta/:id", kasir, handlers.UpdatePeserta)
+	api.Delete("/peserta/:id", kasir, handlers.DeletePeserta)
 
 	// Pembayaran (manual oleh bendahara)
-	bendahara.Get("/pembayaran", handlers.ListPembayaran)
-	bendahara.Post("/pembayaran", handlers.CreatePembayaran)
-	bendahara.Delete("/pembayaran/:id", handlers.DeletePembayaran)
-	bendahara.Get("/pembayaran/rekap", handlers.RekapPembayaran)
+	api.Get("/pembayaran", kasir, handlers.ListPembayaran)
+	api.Post("/pembayaran", kasir, handlers.CreatePembayaran)
+	api.Delete("/pembayaran/:id", kasir, handlers.DeletePembayaran)
+	api.Get("/pembayaran/rekap", kasir, handlers.RekapPembayaran)
 
 	// Invoice online (Doit.id)
-	bendahara.Post("/peserta/:id/invoice", handlers.CreateInvoice)
-	bendahara.Get("/transaksi", handlers.ListTransaksi)
+	api.Post("/peserta/:id/invoice", kasir, handlers.CreateInvoice)
+	api.Get("/transaksi", kasir, handlers.ListTransaksi)
 
 	// ── Panitia pembagian: data penerima + distribusi ──
-	pembagian := api.Group("", middleware.RequireRole("admin", "pembagian"))
+	dist := middleware.RequireRole("admin", "pembagian")
 
-	pembagian.Get("/penerima", handlers.ListPenerima)
-	pembagian.Post("/penerima", handlers.CreatePenerima)
-	pembagian.Put("/penerima/:id", handlers.UpdatePenerima)
-	pembagian.Delete("/penerima/:id", handlers.DeletePenerima)
-	pembagian.Get("/penerima/:id/qr", handlers.GetPenerimaQR)
-	pembagian.Get("/penerima/:id/sertifikat", handlers.SertifikatPenerima)
-	pembagian.Get("/peta/penerima", handlers.PetaPenerima)
+	api.Get("/penerima", dist, handlers.ListPenerima)
+	api.Post("/penerima", dist, handlers.CreatePenerima)
+	api.Put("/penerima/:id", dist, handlers.UpdatePenerima)
+	api.Delete("/penerima/:id", dist, handlers.DeletePenerima)
+	api.Get("/penerima/:id/qr", dist, handlers.GetPenerimaQR)
+	api.Get("/penerima/:id/sertifikat", dist, handlers.SertifikatPenerima)
+	api.Get("/peta/penerima", dist, handlers.PetaPenerima)
 
-	pembagian.Get("/distribusi", handlers.ListDistribusi)
-	pembagian.Post("/distribusi/scan", handlers.ScanQR(hub))
-	pembagian.Get("/distribusi/stats", handlers.DistribusiStats)
+	api.Get("/distribusi", dist, handlers.ListDistribusi)
+	api.Post("/distribusi/scan", dist, handlers.ScanQR(hub))
+	api.Get("/distribusi/stats", dist, handlers.DistribusiStats)
 
 	// Import (Excel) + template
-	pembagian.Post("/import/penerima", handlers.ImportPenerima)
-	pembagian.Get("/import/template/penerima", handlers.DownloadTemplatePenerima)
-	pembagian.Post("/import/peserta", handlers.ImportPeserta)
+	api.Post("/import/penerima", dist, handlers.ImportPenerima)
+	api.Get("/import/template/penerima", dist, handlers.DownloadTemplatePenerima)
+	api.Post("/import/peserta", dist, handlers.ImportPeserta)
 
 	// Export laporan
-	pembagian.Get("/export/rekap.xlsx", handlers.ExportRekapXLSX)
-	pembagian.Get("/export/rekap.pdf", handlers.ExportRekapPDF)
+	api.Get("/export/rekap.xlsx", dist, handlers.ExportRekapXLSX)
+	api.Get("/export/rekap.pdf", dist, handlers.ExportRekapPDF)
 
 	log.Printf("Server running on :%s", cfg.Port)
 	log.Fatal(app.Listen(":" + cfg.Port))

@@ -95,6 +95,8 @@ export default function ValidasiUser() {
       const r = await api.post(`/api/admin/users/${u.id}/approve`)
       const extra = r.data.peserta_id ? ' Data peserta dibuat.' : r.data.penerima_id ? ' Data penerima dibuat.' : ''
       toast.success(`Akun ${u.nama} diaktifkan.${extra}`)
+      // paket pilihan pendaftar penuh → paket tidak ditetapkan, peserta pilih sendiri
+      if (r.data.peringatan) toast(r.data.peringatan, { icon: '⚠️', duration: 7000 })
       load()
     } catch (err) { toast.error(err.response?.data?.error || 'Gagal menyetujui') }
   }

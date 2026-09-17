@@ -48,12 +48,26 @@ func CreatePeserta(c *fiber.Ctx) error {
 	if p.SlotKe == 0 {
 		p.SlotKe = 1
 	}
-	// hitung total_bayar dari paket jika tersedia
-	if p.PaketID != nil && p.TotalBayar == 0 {
+	// validasi paket + kuota, lalu ambil harga otomatis dari paket
+	if p.PaketID != nil && *p.PaketID != "" {
 		var harga float64
+		var maxShohibul int
+		if err := database.Pool.QueryRow(context.Background(),
+			`SELECT harga_per_orang, max_shohibul FROM paket_sapi WHERE id=$1`, *p.PaketID).
+			Scan(&harga, &maxShohibul); err != nil {
+			return c.Status(404).JSON(fiber.Map{"error": "paket tidak ditemukan"})
+		}
+		var terisi int
 		_ = database.Pool.QueryRow(context.Background(),
-			`SELECT harga_per_orang FROM paket_sapi WHERE id=$1`, *p.PaketID).Scan(&harga)
-		p.TotalBayar = harga
+			`SELECT COUNT(*) FROM peserta WHERE paket_id=$1`, *p.PaketID).Scan(&terisi)
+		if terisi >= maxShohibul {
+			return c.Status(409).JSON(fiber.Map{"error": "kuota paket sudah penuh"})
+		}
+		if p.TotalBayar == 0 {
+			p.TotalBayar = harga
+		}
+	} else {
+		p.PaketID = nil
 	}
 	err := database.Pool.QueryRow(context.Background(), `
 		INSERT INTO peserta (nama, no_hp, alamat, email, paket_id, slot_ke, total_bayar, total_terbayar, status_bayar)
@@ -82,20 +96,77 @@ func GetPeserta(c *fiber.Ctx) error {
 	return c.JSON(p)
 }
 
+// UpdatePeserta — ubah data peserta, termasuk menetapkan / mengganti paket.
+// Dipakai panitia bendahara untuk menambahkan paket bagi pendaftar qurban.
 func UpdatePeserta(c *fiber.Ctx) error {
 	id := c.Params("id")
 	var p models.Peserta
 	if err := c.BodyParser(&p); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "invalid body"})
 	}
-	_, err := database.Pool.Exec(context.Background(), `
+	if p.Nama == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "nama wajib"})
+	}
+	if p.SlotKe == 0 {
+		p.SlotKe = 1
+	}
+	ctx := context.Background()
+
+	// data lama — untuk deteksi perubahan paket & fallback total_bayar
+	var oldPaketID *string
+	var oldTotalBayar float64
+	if err := database.Pool.QueryRow(ctx,
+		`SELECT paket_id, total_bayar FROM peserta WHERE id=$1`, id).
+		Scan(&oldPaketID, &oldTotalBayar); err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "peserta tidak ditemukan"})
+	}
+
+	if p.PaketID != nil && *p.PaketID == "" {
+		p.PaketID = nil
+	}
+
+	paketBerubah := (oldPaketID == nil) != (p.PaketID == nil) ||
+		(oldPaketID != nil && p.PaketID != nil && *oldPaketID != *p.PaketID)
+
+	switch {
+	case paketBerubah && p.PaketID == nil:
+		// paket dilepas → tagihan dikosongkan
+		p.TotalBayar = 0
+
+	case paketBerubah:
+		// paket baru → validasi kuota + ambil harga
+		var harga float64
+		var maxShohibul int
+		if err := database.Pool.QueryRow(ctx,
+			`SELECT harga_per_orang, max_shohibul FROM paket_sapi WHERE id=$1`, *p.PaketID).
+			Scan(&harga, &maxShohibul); err != nil {
+			return c.Status(404).JSON(fiber.Map{"error": "paket tidak ditemukan"})
+		}
+		var terisi int
+		_ = database.Pool.QueryRow(ctx,
+			`SELECT COUNT(*) FROM peserta WHERE paket_id=$1 AND id<>$2`, *p.PaketID, id).Scan(&terisi)
+		if terisi >= maxShohibul {
+			return c.Status(409).JSON(fiber.Map{"error": "kuota paket sudah penuh"})
+		}
+		p.TotalBayar = harga
+
+	case p.TotalBayar == 0:
+		// paket tidak berubah & frontend tidak mengirim nominal → pertahankan tagihan lama
+		p.TotalBayar = oldTotalBayar
+	}
+
+	_, err := database.Pool.Exec(ctx, `
 		UPDATE peserta SET nama=$1, no_hp=$2, alamat=$3, email=$4, paket_id=$5, slot_ke=$6, total_bayar=$7
 		WHERE id=$8`,
 		p.Nama, p.NoHP, p.Alamat, p.Email, p.PaketID, p.SlotKe, p.TotalBayar, id)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 	}
-	return c.JSON(fiber.Map{"ok": true})
+
+	// tagihan bisa berubah → hitung ulang status pembayaran
+	_ = recalcPeserta(ctx, id)
+
+	return c.JSON(fiber.Map{"ok": true, "total_bayar": p.TotalBayar})
 }
 
 func DeletePeserta(c *fiber.Ctx) error {

@@ -25,3 +25,8 @@ backend/server
 # postgres data
 qurban_pg/
 backups/
+
+# upload gambar paket (disimpan di volume docker, bukan di repo)
+backend/uploads/
+uploads/
+!backend/uploads/.gitkeep

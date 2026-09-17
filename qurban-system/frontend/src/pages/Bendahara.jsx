@@ -1,32 +1,47 @@
 import { useEffect, useState } from 'react'
 import { api } from '../services/api'
 import toast from 'react-hot-toast'
+import Paket from './Paket'
+import Peserta from './Peserta'
 
 const rupiah = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID')
 const METODE = ['tunai', 'transfer', 'qris', 'doit']
 
+const TABS = [
+  { id: 'pembayaran', label: 'Pencatatan Pembayaran', desc: 'Catat setoran peserta qurban' },
+  { id: 'paket', label: 'Paket Sapi', desc: 'Tambah & kelola paket qurban' },
+  { id: 'pendaftar', label: 'Pendaftar Qurban', desc: 'Tetapkan paket untuk pendaftar' },
+]
+
 export default function Bendahara() {
   const [tab, setTab] = useState('pembayaran')
+  const aktif = TABS.find(t => t.id === tab)
 
   return (
     <div className="space-y-6" data-testid="bendahara-page">
       <div>
         <h1 className="text-2xl font-extrabold">Bendahara</h1>
-        <p className="text-sm text-slate-500">Kelola paket sapi dan catat pembayaran peserta qurban.</p>
+        <p className="text-sm text-slate-500">
+          Kelola paket qurban, tetapkan paket untuk pendaftar, dan catat pembayaran peserta.
+        </p>
       </div>
 
-      <div className="flex gap-2">
-        <button onClick={() => setTab('pembayaran')} data-testid="tab-pembayaran"
-          className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
-            tab === 'pembayaran' ? 'bg-primary-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-          }`}>Pencatatan Pembayaran</button>
-        <button onClick={() => setTab('paket')} data-testid="tab-paket"
-          className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
-            tab === 'paket' ? 'bg-primary-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-          }`}>Paket Sapi</button>
+      <div className="flex flex-wrap gap-2">
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)} data-testid={`tab-${t.id}`}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
+              tab === t.id ? 'bg-primary-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+            }`}>{t.label}</button>
+        ))}
       </div>
 
-      {tab === 'pembayaran' ? <PembayaranTab /> : <PaketTab />}
+      {aktif && (
+        <div className="text-xs text-slate-500 -mt-3">{aktif.desc}</div>
+      )}
+
+      {tab === 'pembayaran' && <PembayaranTab />}
+      {tab === 'paket' && <Paket />}
+      {tab === 'pendaftar' && <Peserta />}
     </div>
   )
 }
@@ -199,100 +214,6 @@ function PembayaranTab() {
             {riwayat.length === 0 && (
               <tr><td colSpan={7} className="text-center py-6 text-slate-500">Belum ada pembayaran tercatat.</td></tr>
             )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  )
-}
-
-/* ─────────────────────────── Paket ─────────────────────────── */
-
-function PaketTab() {
-  const [items, setItems] = useState([])
-  const [editing, setEditing] = useState(null)
-  const [form, setForm] = useState({ nama: '', jenis: 'sapi_penuh', max_shohibul: 1, harga_per_orang: '', deskripsi: '' })
-
-  const load = () => api.get('/api/paket').then(r => setItems(r.data || []))
-  useEffect(() => { load() }, [])
-
-  const reset = () => { setForm({ nama: '', jenis: 'sapi_penuh', max_shohibul: 1, harga_per_orang: '', deskripsi: '' }); setEditing(null) }
-
-  const submit = async (e) => {
-    e.preventDefault()
-    const payload = { ...form, max_shohibul: Number(form.max_shohibul), harga_per_orang: Number(form.harga_per_orang) }
-    try {
-      if (editing) await api.put(`/api/paket/${editing}`, payload)
-      else await api.post('/api/paket', payload)
-      toast.success(editing ? 'Paket diperbarui' : 'Paket ditambahkan')
-      reset(); load()
-    } catch (err) { toast.error(err.response?.data?.error || 'Gagal menyimpan') }
-  }
-
-  const edit = (p) => {
-    setEditing(p.id)
-    setForm({ nama: p.nama, jenis: p.jenis, max_shohibul: p.max_shohibul, harga_per_orang: p.harga_per_orang, deskripsi: p.deskripsi || '' })
-  }
-
-  const hapus = async (id) => {
-    if (!confirm('Hapus paket ini?')) return
-    try { await api.delete(`/api/paket/${id}`); toast.success('Paket dihapus'); load() }
-    catch (err) { toast.error(err.response?.data?.error || 'Gagal menghapus') }
-  }
-
-  return (
-    <div className="space-y-6">
-      <form onSubmit={submit} className="card grid grid-cols-1 md:grid-cols-5 gap-3 items-end" data-testid="paket-form">
-        <div className="md:col-span-2">
-          <label className="label">Nama Paket *</label>
-          <input required className="input" value={form.nama} onChange={e => setForm({ ...form, nama: e.target.value })} data-testid="paket-nama" />
-        </div>
-        <div>
-          <label className="label">Jenis</label>
-          <select className="input" value={form.jenis} onChange={e => setForm({ ...form, jenis: e.target.value })}>
-            <option value="sapi_penuh">Sapi Penuh</option>
-            <option value="patungan_1_7">Patungan 1/7</option>
-            <option value="mandiri">Mandiri</option>
-          </select>
-        </div>
-        <div>
-          <label className="label">Maks. Shohibul</label>
-          <input type="number" min="1" className="input" value={form.max_shohibul} onChange={e => setForm({ ...form, max_shohibul: e.target.value })} />
-        </div>
-        <div>
-          <label className="label">Harga / Orang *</label>
-          <input required type="number" min="0" className="input" value={form.harga_per_orang} onChange={e => setForm({ ...form, harga_per_orang: e.target.value })} data-testid="paket-harga" />
-        </div>
-        <div className="md:col-span-4">
-          <label className="label">Deskripsi</label>
-          <input className="input" value={form.deskripsi} onChange={e => setForm({ ...form, deskripsi: e.target.value })} />
-        </div>
-        <div className="flex gap-2">
-          <button className="btn-primary flex-1 justify-center" data-testid="paket-submit">{editing ? 'Perbarui' : 'Tambah'}</button>
-          {editing && <button type="button" onClick={reset} className="btn-outline">Batal</button>}
-        </div>
-      </form>
-
-      <div className="card overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="text-slate-500 text-left">
-            <tr><th className="py-2">Nama</th><th>Jenis</th><th>Maks</th><th>Harga/Orang</th><th>Deskripsi</th><th></th></tr>
-          </thead>
-          <tbody>
-            {items.map(p => (
-              <tr key={p.id} className="border-t border-slate-100">
-                <td className="py-2 font-semibold">{p.nama}</td>
-                <td><span className="badge bg-slate-100 text-slate-700">{p.jenis}</span></td>
-                <td>{p.max_shohibul}</td>
-                <td>{rupiah(p.harga_per_orang)}</td>
-                <td className="text-xs text-slate-500 max-w-[240px]">{p.deskripsi || '-'}</td>
-                <td className="text-right whitespace-nowrap">
-                  <button onClick={() => edit(p)} className="text-primary-700 text-xs font-semibold">Edit</button>
-                  <button onClick={() => hapus(p.id)} className="text-red-600 text-xs font-semibold ml-3">Hapus</button>
-                </td>
-              </tr>
-            ))}
-            {items.length === 0 && <tr><td colSpan={6} className="text-center py-6 text-slate-500">Belum ada paket.</td></tr>}
           </tbody>
         </table>
       </div>

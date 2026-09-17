@@ -12,5 +12,7 @@ FROM alpine:3.19
 RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
 COPY --from=build /out/server /app/server
+# Folder publik untuk gambar paket (dipasang sebagai volume di compose)
+RUN mkdir -p /app/uploads/paket
 EXPOSE 8080
 CMD ["/app/server"]

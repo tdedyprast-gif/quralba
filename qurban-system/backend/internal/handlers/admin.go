@@ -35,37 +35,99 @@ var allowedRoles = map[string]bool{
 
 var allowedStatus = map[string]bool{"pending": true, "active": true, "rejected": true}
 
+// paketHargaKuota — ambil harga paket sekaligus cek apakah kuotanya masih tersedia.
+// excludePesertaID dipakai saat mengevaluasi ulang peserta yang sudah memakai paket itu
+// (agar tidak menghitung dirinya sendiri sebagai pengisi slot).
+//
+// CATATAN: kolom peserta.id bertipe uuid — jangan pernah membandingkannya dengan string
+// kosong (''), karena Postgres gagal cast dan query error (kuota jadi selalu dianggap
+// tersedia). Karena itu query-nya dipisah, bukan pakai `id <> $2` dengan $2 = ''.
+func paketHargaKuota(ctx context.Context, paketID, excludePesertaID string) (float64, bool) {
+	var harga float64
+	var maxShohibul int
+	if err := database.Pool.QueryRow(ctx,
+		`SELECT harga_per_orang, max_shohibul FROM paket_sapi WHERE id=$1`, paketID).
+		Scan(&harga, &maxShohibul); err != nil {
+		return 0, false
+	}
+
+	var terisi int
+	var err error
+	if excludePesertaID == "" {
+		err = database.Pool.QueryRow(ctx,
+			`SELECT COUNT(*) FROM peserta WHERE paket_id=$1`, paketID).Scan(&terisi)
+	} else {
+		err = database.Pool.QueryRow(ctx,
+			`SELECT COUNT(*) FROM peserta WHERE paket_id=$1 AND id<>$2`, paketID, excludePesertaID).Scan(&terisi)
+	}
+	if err != nil {
+		// gagal menghitung → jangan pakai paket ini (fail closed, jangan sampai over kuota)
+		return 0, false
+	}
+	return harga, terisi < maxShohibul
+}
+
 // ensurePesertaRecord — pastikan akun punya record peserta, lalu kembalikan id-nya.
 // Urutan: pakai tautan yang ada → pakai record dengan email sama yang belum tertaut → buat baru.
-func ensurePesertaRecord(ctx context.Context, userID, nama, noHP, alamat, email string, paketID *string) (string, error) {
+//
+// Nilai balik kedua (paketPenuh) = true HANYA kalau paket dari pendaftaran tidak jadi
+// dipakai karena kuotanya sudah penuh. Pemanggil sebaiknya memberi tahu admin, dan
+// peserta tetap bisa memilih paket lain sendiri lewat menu "Akun Saya".
+func ensurePesertaRecord(ctx context.Context, userID, nama, noHP, alamat, email string, paketID *string) (string, bool, error) {
 	var linked *string
 	_ = database.Pool.QueryRow(ctx, `SELECT peserta_id FROM users WHERE id=$1`, userID).Scan(&linked)
 	if linked != nil && *linked != "" {
-		return *linked, nil
+		return *linked, false, nil
 	}
+
+	// Ada record peserta lama dengan email sama yang belum tertaut ke akun mana pun
+	// (mis. dibuat manual panitia atau hasil import) → pakai record itu.
 	if email != "" {
 		var pid string
+		var existingPaket *string
 		err := database.Pool.QueryRow(ctx, `
-			SELECT p.id FROM peserta p
+			SELECT p.id, p.paket_id FROM peserta p
 			LEFT JOIN users u ON u.peserta_id = p.id
-			WHERE p.email=$1 AND u.id IS NULL LIMIT 1`, email).Scan(&pid)
+			WHERE p.email=$1 AND u.id IS NULL LIMIT 1`, email).Scan(&pid, &existingPaket)
 		if err == nil {
-			return pid, nil
+			// Record lama belum punya paket → lengkapi dengan paket yang dipilih saat mendaftar.
+			if existingPaket == nil && paketID != nil && *paketID != "" {
+				harga, tersedia := paketHargaKuota(ctx, *paketID, pid)
+				if !tersedia {
+					return pid, true, nil
+				}
+				if _, err := database.Pool.Exec(ctx,
+					`UPDATE peserta SET paket_id=$1, total_bayar=$2 WHERE id=$3`,
+					*paketID, harga, pid); err != nil {
+					return pid, false, nil
+				}
+				_ = recalcPeserta(ctx, pid)
+			}
+			return pid, false, nil
 		}
 	}
+
+	// Buat record baru — paket hanya dipakai kalau kuotanya masih ada.
+	var paketFinal *string
 	var harga float64
-	if paketID != nil {
-		_ = database.Pool.QueryRow(ctx, `SELECT harga_per_orang FROM paket_sapi WHERE id=$1`, *paketID).Scan(&harga)
+	paketPenuh := false
+	if paketID != nil && *paketID != "" {
+		if h, tersedia := paketHargaKuota(ctx, *paketID, ""); tersedia {
+			paketFinal, harga = paketID, h
+		} else {
+			paketPenuh = true
+		}
 	}
+
 	var pesertaID string
 	err := database.Pool.QueryRow(ctx, `
 		INSERT INTO peserta (nama, no_hp, alamat, email, paket_id, slot_ke, total_bayar, total_terbayar, status_bayar)
 		VALUES ($1,$2,$3,$4,$5,1,$6,0,'belum_lunas') RETURNING id`,
-		nama, noHP, alamat, email, paketID, harga).Scan(&pesertaID)
+		nama, noHP, alamat, email, paketFinal, harga).Scan(&pesertaID)
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
-	return pesertaID, nil
+	return pesertaID, paketPenuh, nil
 }
 
 // ensurePenerimaRecord — pastikan akun punya record penerima_daging.
@@ -166,14 +228,19 @@ func ApproveUser(c *fiber.Ctx) error {
 
 	switch role {
 	case "peserta":
-		pesertaID, err := ensurePesertaRecord(ctx, id, nama, noHP, alamat, email, paketID)
+		pesertaID, paketPenuh, err := ensurePesertaRecord(ctx, id, nama, noHP, alamat, email, paketID)
 		if err != nil {
 			return c.Status(500).JSON(fiber.Map{"error": "gagal membuat data peserta: " + err.Error()})
 		}
 		_, _ = database.Pool.Exec(ctx, `
 			UPDATE users SET status='active', peserta_id=$1, approved_by=$2, approved_at=now(), reject_reason=NULL
 			WHERE id=$3`, pesertaID, adminID, id)
-		return c.JSON(fiber.Map{"ok": true, "status": "active", "peserta_id": pesertaID})
+		out := fiber.Map{"ok": true, "status": "active", "peserta_id": pesertaID}
+		if paketPenuh {
+			out["paket_penuh"] = true
+			out["peringatan"] = "Kuota paket yang dipilih sudah penuh — paket belum ditetapkan. Peserta dapat memilih paket lain dari menu Akun Saya."
+		}
+		return c.JSON(out)
 
 	case "penerima":
 		penerimaID, err := ensurePenerimaRecord(ctx, id, nama, noHP, alamat)
@@ -258,7 +325,7 @@ func CreateUser(c *fiber.Ctx) error {
 	if r.Status == "active" {
 		switch r.Role {
 		case "peserta":
-			if pesertaID, err := ensurePesertaRecord(ctx, id, r.Nama, r.NoHP, r.Alamat, r.Email, nil); err == nil {
+			if pesertaID, _, err := ensurePesertaRecord(ctx, id, r.Nama, r.NoHP, r.Alamat, r.Email, nil); err == nil {
 				_, _ = database.Pool.Exec(ctx, `UPDATE users SET peserta_id=$1 WHERE id=$2`, pesertaID, id)
 				out["peserta_id"] = pesertaID
 			}
@@ -335,7 +402,7 @@ func UpdateUser(c *fiber.Ctx) error {
 
 	switch r.Role {
 	case "peserta":
-		pesertaID, err := ensurePesertaRecord(ctx, id, r.Nama, r.NoHP, r.Alamat, r.Email, paketID)
+		pesertaID, paketPenuh, err := ensurePesertaRecord(ctx, id, r.Nama, r.NoHP, r.Alamat, r.Email, paketID)
 		if err != nil {
 			return c.Status(500).JSON(fiber.Map{"error": "gagal menyiapkan data peserta: " + err.Error()})
 		}
@@ -344,6 +411,10 @@ func UpdateUser(c *fiber.Ctx) error {
 			UPDATE peserta SET nama=$1, no_hp=$2, alamat=$3, email=$4 WHERE id=$5`,
 			r.Nama, r.NoHP, r.Alamat, r.Email, pesertaID)
 		out["peserta_id"] = pesertaID
+		if paketPenuh {
+			out["paket_penuh"] = true
+			out["peringatan"] = "Kuota paket yang dipilih sudah penuh — paket belum ditetapkan. Peserta dapat memilih paket lain dari menu Akun Saya."
+		}
 
 	case "penerima":
 		penerimaID, err := ensurePenerimaRecord(ctx, id, r.Nama, r.NoHP, r.Alamat)

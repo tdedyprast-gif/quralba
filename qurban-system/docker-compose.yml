@@ -38,6 +38,8 @@ services:
       DOIT_WEBHOOK_SECRET: ${DOIT_WEBHOOK_SECRET}
     ports:
       - "8080:8080"
+    volumes:
+      - qurban_uploads:/app/uploads
 
   frontend:
     build:
@@ -54,3 +56,4 @@ services:
 
 volumes:
   qurban_pg:
+  qurban_uploads:

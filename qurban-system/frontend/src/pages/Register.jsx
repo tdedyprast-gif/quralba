@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from '../services/api'
 import toast from 'react-hot-toast'
 
@@ -10,17 +10,26 @@ const ROLES = [
 
 export default function Register() {
   const nav = useNavigate()
+  const [searchParams] = useSearchParams()
+  const paketParam = searchParams.get('paket') || ''
   const [role, setRole] = useState('peserta')
   const [paket, setPaket] = useState([])
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(null)
   const [form, setForm] = useState({
-    nama: '', email: '', password: '', no_hp: '', alamat: '', paket_id: '',
+    nama: '', email: '', password: '', no_hp: '', alamat: '', paket_id: paketParam,
   })
 
   useEffect(() => {
     api.get('/api/public/paket').then(r => setPaket(r.data || [])).catch(() => {})
   }, [])
+
+  const paketDipilih = paket.find(p => p.id === form.paket_id)
+  // kuota bisa saja habis setelah halaman landing dibuka
+  const sisaPaketDipilih = paketDipilih
+    ? Math.max(0, Number(paketDipilih.max_shohibul || 0) - Number(paketDipilih.terisi || 0))
+    : 0
+  const paketDipilihPenuh = !!paketDipilih && sisaPaketDipilih <= 0
 
   const submit = async (e) => {
     e.preventDefault()
@@ -62,6 +71,34 @@ export default function Register() {
           <div className="text-2xl font-extrabold text-primary-700">Daftar Akun Qurban</div>
           <div className="text-sm text-slate-500 mt-1">Pilih jenis akun, lalu lengkapi data Anda</div>
         </div>
+
+        {paketDipilih && (
+          <div className={`mb-5 rounded-xl border p-4 ${
+            paketDipilihPenuh ? 'border-red-300 bg-red-50' : 'border-primary-200 bg-primary-50'
+          }`} data-testid="banner-paket">
+            <div className={`text-xs font-bold ${paketDipilihPenuh ? 'text-red-700' : 'text-primary-700'}`}>
+              {paketDipilihPenuh ? 'PAKET TERPILIH — KUOTA PENUH' : 'PAKET TERPILIH'}
+            </div>
+            <div className="flex items-center justify-between gap-3 mt-1">
+              <div>
+                <div className="font-bold">{paketDipilih.nama}</div>
+                <div className="text-sm text-slate-600">
+                  Rp {Number(paketDipilih.harga_per_orang).toLocaleString('id-ID')} / orang
+                </div>
+                {paketDipilihPenuh ? (
+                  <div className="text-xs font-semibold text-red-600 mt-1">
+                    Kuota paket ini sudah penuh — silakan pilih paket lain, atau tetap daftar dan
+                    paket ditentukan panitia.
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-500 mt-1">sisa {sisaPaketDipilih} slot</div>
+                )}
+              </div>
+              <button type="button" onClick={() => setForm(f => ({ ...f, paket_id: '' }))}
+                className="btn-outline text-xs shrink-0">Ganti</button>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
           {ROLES.map(r => (
@@ -114,12 +151,19 @@ export default function Register() {
               <select className="input" value={form.paket_id}
                 onChange={e => setForm({ ...form, paket_id: e.target.value })} data-testid="register-paket">
                 <option value="">-- Pilih paket (bisa ditentukan admin nanti) --</option>
-                {paket.map(p => (
-                  <option key={p.id} value={p.id}>
-                    {p.nama} — Rp {Number(p.harga_per_orang).toLocaleString('id-ID')}
-                  </option>
-                ))}
+                {paket.map(p => {
+                  const sisa = Math.max(0, Number(p.max_shohibul || 0) - Number(p.terisi || 0))
+                  return (
+                    <option key={p.id} value={p.id} disabled={sisa <= 0}>
+                      {p.nama} — Rp {Number(p.harga_per_orang).toLocaleString('id-ID')}
+                      {sisa <= 0 ? ' (kuota penuh)' : ` (sisa ${sisa} slot)`}
+                    </option>
+                  )
+                })}
               </select>
+              <p className="text-[11px] text-slate-400 mt-1">
+                Kuota terbatas — paket yang sudah penuh tidak bisa dipilih.
+              </p>
             </div>
           )}
         </div>
@@ -130,6 +174,9 @@ export default function Register() {
 
         <div className="text-center text-sm text-slate-500 mt-4">
           Sudah punya akun? <Link to="/login" className="text-primary-700 font-semibold">Masuk di sini</Link>
+        </div>
+        <div className="text-center text-sm mt-2">
+          <Link to="/" className="text-slate-500 hover:text-primary-700">← Kembali ke beranda</Link>
         </div>
       </form>
     </div>

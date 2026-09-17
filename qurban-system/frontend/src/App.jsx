@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import Layout from './components/Layout'
+import Landing from './pages/Landing'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
@@ -16,7 +17,7 @@ import Bendahara from './pages/Bendahara'
 import Pembagian from './pages/Pembagian'
 import AkunSaya from './pages/AkunSaya'
 
-// Halaman default per role
+// Halaman default setelah login, sesuai role
 function Home() {
   const { user } = useAuth()
   const role = user?.role
@@ -28,18 +29,21 @@ function Protected({ children, roles }) {
   const { user, loading } = useAuth()
   if (loading) return <div className="p-8">Memuat...</div>
   if (!user) return <Navigate to="/login" replace />
-  if (roles && !roles.includes(user.role)) return <Navigate to="/" replace />
+  if (roles && !roles.includes(user.role)) return <Navigate to="/dashboard" replace />
   return children
 }
 
 export default function App() {
   return (
     <Routes>
+      {/* ── Publik ── */}
+      <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
 
+      {/* ── Area panitia / peserta (perlu login) ── */}
       <Route element={<Protected><Layout /></Protected>}>
-        <Route path="/" element={<Home />} />
+        <Route path="/dashboard" element={<Home />} />
         <Route path="/akun" element={<AkunSaya />} />
 
         <Route path="/validasi" element={<Protected roles={['admin']}><ValidasiUser /></Protected>} />

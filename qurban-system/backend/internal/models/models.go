@@ -38,6 +38,7 @@ type PaketSapi struct {
 	HargaPerOrang float64   `json:"harga_per_orang"`
 	Deskripsi     string    `json:"deskripsi"`
 	Gambar        string    `json:"gambar"`
+	Terisi        int       `json:"terisi"`
 	CreatedAt     time.Time `json:"created_at"`
 }
 

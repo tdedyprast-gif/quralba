@@ -7,7 +7,8 @@ export default function Login() {
   const { login } = useAuth()
   const nav = useNavigate()
   const [loading, setLoading] = useState(false)
-
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const submit = async (e) => {
     e.preventDefault()
     setLoading(true)
@@ -32,11 +33,11 @@ export default function Login() {
         <div className="space-y-4">
           <div>
             <label className="label">Email</label>
-            <input data-testid="login-email" className="input" type="email" value="" required />
+            <input data-testid="login-email" className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
           </div>
           <div>
             <label className="label">Password</label>
-            <input data-testid="login-password" className="input" type="password" value="" required />
+            <input data-testid="login-password" className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
           </div>
           <button data-testid="login-submit" disabled={loading} className="btn-primary w-full justify-center">
             {loading ? 'Memproses…' : 'Masuk'}
@@ -47,6 +48,9 @@ export default function Login() {
           <Link to="/register" className="text-primary-700 font-semibold" data-testid="link-register">
             Daftar sebagai peserta / penerima
           </Link>
+        </div>
+        <div className="text-center text-sm mt-2">
+          <Link to="/" className="text-slate-500 hover:text-primary-700">← Kembali ke beranda</Link>
         </div>
       </form>
     </div>
