@@ -1,16 +1,59 @@
-# Production docker-compose override
-# Pulls pre-built images from GHCR instead of building locally.
-# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-version: "3.9"
-
 services:
+  db:
+    image: postgres:16-alpine
+    container_name: qurban_db
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    # ports tidak dibuka ke host — backend akses via internal network
+    volumes:
+      - qurban_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   backend:
-    image: ghcr.io/${GHCR_OWNER:-your-org}/qurban-backend:latest
-    build: !reset null
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: qurban_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      PORT: ${PORT}
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASS: ${ADMIN_PASS}
+      DOIT_API_KEY: ${DOIT_API_KEY}
+      DOIT_BASE_URL: ${DOIT_BASE_URL}
+      DOIT_WEBHOOK_SECRET: ${DOIT_WEBHOOK_SECRET}
+    ports:
+      - "8003:8003"
+    volumes:
+      - qurban_uploads:/app/uploads
 
   frontend:
-    image: ghcr.io/${GHCR_OWNER:-your-org}/qurban-frontend:latest
-    build: !reset null
     build:
+      context: ./frontend
+      dockerfile: Dockerfile
       args:
-        VITE_API_URL: ${VITE_API_URL:-https://api.qurban.local}
+        VITE_API_URL: ${VITE_API_URL}
+    container_name: qurban_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3003:80"
+
+volumes:
+  qurban_pg:
+  qurban_uploads:
