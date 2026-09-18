@@ -45,7 +45,7 @@ RUN mkdir -p /app/uploads/paket && \
 USER appuser
 
 # Port yang dipakai backend (sesuai .env PORT=8003)
-EXPOSE 8003
+EXPOSE 8004
 
 # Health check — backend punya endpoint /api/health
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
