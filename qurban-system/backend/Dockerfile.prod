@@ -44,11 +44,11 @@ RUN mkdir -p /app/uploads/paket && \
 # Switch ke non-root user
 USER appuser
 
-# Port yang dipakai backend (sesuai .env PORT=8004)
-EXPOSE 8004
+# Port yang dipakai backend (sesuai .env PORT=8003)
+EXPOSE 8003
 
 # Health check — backend punya endpoint /api/health
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:8004/api/health || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8003/api/health || exit 1
 
 CMD ["/app/server"]
