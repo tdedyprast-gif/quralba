@@ -12,7 +12,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/images/marker-shadow.png',
 })
 
-const CENTER_JAKARTA = [-6.2088, 106.8456]
+const CENTER_PACITAN = [-8.2041, 111.0970]
 
 export default function Peta() {
   const [items, setItems] = useState([])
@@ -22,12 +22,12 @@ export default function Peta() {
   useEffect(() => {
     load()
     const ws = new WebSocket(wsUrl())
-    ws.onmessage = (e) => { try { const m = JSON.parse(e.data); if (m.event === 'distribusi.scan') load() } catch {} }
+    ws.onmessage = (e) => { try { const m = JSON.parse(e.data); if (m.event === 'distribusi.scan') load() } catch { } }
     return () => ws.close()
   }, [])
 
   const center = useMemo(() => {
-    if (items.length === 0) return CENTER_JAKARTA
+    if (items.length === 0) return CENTER_PACITAN
     const lat = items.reduce((s, i) => s + i.latitude, 0) / items.length
     const lng = items.reduce((s, i) => s + i.longitude, 0) / items.length
     return [lat, lng]
