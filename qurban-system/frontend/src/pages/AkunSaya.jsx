@@ -18,7 +18,7 @@ export default function AkunSaya() {
   const [showPilih, setShowPilih] = useState(false)
   const [saving, setSaving] = useState('')
 
-  const loadPaket = () => api.get('/api/saya/paket').then(r => setPaketData(r.data)).catch(() => {})
+  const loadPaket = () => api.get('/api/saya/paket').then(r => setPaketData(r.data)).catch(() => { })
 
   useEffect(() => {
     api.get('/api/saya')
@@ -117,9 +117,8 @@ export default function AkunSaya() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {daftarPaketTersedia.map(pk => (
                   <div key={pk.id}
-                    className={`rounded-xl border overflow-hidden flex flex-col ${
-                      pk.dipakai ? 'border-primary-400 ring-2 ring-primary-500/20' : 'border-slate-200'
-                    }`}
+                    className={`rounded-xl border overflow-hidden flex flex-col ${pk.dipakai ? 'border-primary-400 ring-2 ring-primary-500/20' : 'border-slate-200'
+                      }`}
                     data-testid={`paket-opsi-${pk.id}`}>
                     {pk.gambar ? (
                       <img src={pk.gambar} alt={pk.nama} className="w-full h-36 object-cover" />
@@ -138,20 +137,19 @@ export default function AkunSaya() {
                       </div>
                       <div className="text-xs text-slate-500 mt-1">
                         Kuota {pk.terisi}/{pk.max_shohibul} terisi
-                        {!pk.penuh && <> — sisa <b>{pk.sisa}</b> slot</>}
+                        {!pk.penuh && <> — sisa <b>{pk.sisa}</b> kuota</>}
                       </div>
                       <button
                         type="button"
                         disabled={pk.penuh || pk.dipakai || saving === pk.id}
                         onClick={() => daftarPaket(pk.id)}
                         data-testid={`daftar-paket-${pk.id}`}
-                        className={`mt-3 justify-center ${
-                          pk.penuh || pk.dipakai ? 'btn-outline opacity-60 cursor-not-allowed' : 'btn-primary'
-                        }`}>
+                        className={`mt-3 justify-center ${pk.penuh || pk.dipakai ? 'btn-outline opacity-60 cursor-not-allowed' : 'btn-primary'
+                          }`}>
                         {saving === pk.id ? 'Memproses…'
                           : pk.dipakai ? 'Sudah Terdaftar'
-                          : pk.penuh ? 'Kuota Penuh'
-                          : 'Daftar Paket Ini'}
+                            : pk.penuh ? 'Kuota Penuh'
+                              : 'Daftar Paket Ini'}
                       </button>
                     </div>
                   </div>

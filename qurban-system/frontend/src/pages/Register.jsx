@@ -21,7 +21,7 @@ export default function Register() {
   })
 
   useEffect(() => {
-    api.get('/api/public/paket').then(r => setPaket(r.data || [])).catch(() => {})
+    api.get('/api/public/paket').then(r => setPaket(r.data || [])).catch(() => { })
   }, [])
 
   const paketDipilih = paket.find(p => p.id === form.paket_id)
@@ -73,9 +73,8 @@ export default function Register() {
         </div>
 
         {paketDipilih && (
-          <div className={`mb-5 rounded-xl border p-4 ${
-            paketDipilihPenuh ? 'border-red-300 bg-red-50' : 'border-primary-200 bg-primary-50'
-          }`} data-testid="banner-paket">
+          <div className={`mb-5 rounded-xl border p-4 ${paketDipilihPenuh ? 'border-red-300 bg-red-50' : 'border-primary-200 bg-primary-50'
+            }`} data-testid="banner-paket">
             <div className={`text-xs font-bold ${paketDipilihPenuh ? 'text-red-700' : 'text-primary-700'}`}>
               {paketDipilihPenuh ? 'PAKET TERPILIH — KUOTA PENUH' : 'PAKET TERPILIH'}
             </div>
@@ -91,7 +90,7 @@ export default function Register() {
                     paket ditentukan panitia.
                   </div>
                 ) : (
-                  <div className="text-xs text-slate-500 mt-1">sisa {sisaPaketDipilih} slot</div>
+                  <div className="text-xs text-slate-500 mt-1">sisa {sisaPaketDipilih} kuota</div>
                 )}
               </div>
               <button type="button" onClick={() => setForm(f => ({ ...f, paket_id: '' }))}
@@ -107,9 +106,8 @@ export default function Register() {
               type="button"
               onClick={() => setRole(r.value)}
               data-testid={`register-role-${r.value}`}
-              className={`text-left rounded-xl border p-4 transition ${
-                role === r.value ? 'border-primary-500 bg-primary-50 ring-2 ring-primary-500/20' : 'border-slate-200 hover:bg-slate-50'
-              }`}
+              className={`text-left rounded-xl border p-4 transition ${role === r.value ? 'border-primary-500 bg-primary-50 ring-2 ring-primary-500/20' : 'border-slate-200 hover:bg-slate-50'
+                }`}
             >
               <div className="text-2xl">{r.icon}</div>
               <div className="font-bold text-sm mt-1">{r.label}</div>
@@ -156,7 +154,7 @@ export default function Register() {
                   return (
                     <option key={p.id} value={p.id} disabled={sisa <= 0}>
                       {p.nama} — Rp {Number(p.harga_per_orang).toLocaleString('id-ID')}
-                      {sisa <= 0 ? ' (kuota penuh)' : ` (sisa ${sisa} slot)`}
+                      {sisa <= 0 ? ' (kuota penuh)' : ` (sisa ${sisa} kuota)`}
                     </option>
                   )
                 })}

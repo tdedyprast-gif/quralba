@@ -204,7 +204,7 @@ export default function Paket() {
                 <td className="align-top pt-3 text-xs">
                   <div className="font-semibold">{p.terisi || 0} / {p.max_shohibul}</div>
                   <div className="text-slate-500">
-                    {sisa(p) > 0 ? `sisa ${sisa(p)} slot` : 'kuota penuh'}
+                    {sisa(p) > 0 ? `sisa ${sisa(p)} kuota` : 'kuota penuh'}
                   </div>
                 </td>
                 <td className="align-top pt-3">{rupiah(p.harga_per_orang)}</td>
