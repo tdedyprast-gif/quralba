@@ -1,0 +1,24 @@
+# ============================================
+# Dockerfile.dev — Frontend React + Vite
+# Vite dev server dengan HMR (Hot Module Replacement)
+# ============================================
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install dependencies
+COPY package.json yarn.lock ./
+RUN yarn install
+
+# Copy source code (bind mount akan override ini saat runtime)
+COPY . .
+
+# Port Vite dev server
+EXPOSE 5173
+
+# HMR port untuk WebSocket
+EXPOSE 24678
+
+# Jalankan Vite dev server — bind ke 0.0.0.0 agar bisa diakses dari host
+CMD ["yarn", "dev", "--host", "0.0.0.0", "--port", "5173"]

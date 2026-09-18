@@ -1,0 +1,54 @@
+# ============================================
+# Dockerfile.prod — Backend Go + Fiber
+# Multi-stage build, minimal image, non-root
+# ============================================
+
+# -------- Stage 1: Builder --------
+FROM golang:1.22-alpine AS builder
+
+WORKDIR /src
+
+# Install git untuk go mod download
+RUN apk add --no-cache git
+
+# Download dependencies (layer caching)
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source dan build
+COPY . .
+RUN go mod tidy && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags="-w -s" \
+    -o /out/server ./cmd
+
+# -------- Stage 2: Runtime --------
+FROM alpine:3.19
+
+# Install ca-certificates untuk HTTPS outbound (Doit.id webhook, dll)
+RUN apk add --no-cache ca-certificates tzdata
+
+# Buat non-root user
+RUN addgroup -g 1000 appgroup && \
+    adduser -u 1000 -G appgroup -s /bin/sh -D appuser
+
+WORKDIR /app
+
+# Copy binary dari builder
+COPY --from=builder --chown=appuser:appgroup /out/server /app/server
+
+# Buat folder uploads untuk gambar paket (volume di-mount di compose)
+RUN mkdir -p /app/uploads/paket && \
+    chown -R appuser:appgroup /app/uploads
+
+# Switch ke non-root user
+USER appuser
+
+# Port yang dipakai backend (sesuai .env PORT=8004)
+EXPOSE 8004
+
+# Health check — backend punya endpoint /api/health
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:8004/api/health || exit 1
+
+CMD ["/app/server"]

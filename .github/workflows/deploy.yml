@@ -1,4 +1,4 @@
-name: Deploy
+name: Deploy to Production
 
 on:
   push:
@@ -8,6 +8,10 @@ on:
 concurrency:
   group: deploy-production
   cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: qurban
 
 jobs:
   # ──────────────────────────────────────────────
@@ -41,7 +45,7 @@ jobs:
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
@@ -49,40 +53,62 @@ jobs:
         id: repo
         run: echo "name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
 
+      # Extract metadata (tags, labels)
+      - name: Docker meta — backend
+        id: meta-backend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}/${{ env.IMAGE_PREFIX }}-backend
+          tags: |
+            type=sha,prefix=,suffix=,format=short
+            type=raw,value=latest
+
+      - name: Docker meta — frontend
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}/${{ env.IMAGE_PREFIX }}-frontend
+          tags: |
+            type=sha,prefix=,suffix=,format=short
+            type=raw,value=latest
+
+      # Build & push backend (production Dockerfile)
       - name: Build & push backend
         uses: docker/build-push-action@v6
         with:
           context: qurban-system/backend
-          file: qurban-system/backend/Dockerfile
+          file: qurban-system/backend/Dockerfile.prod
           push: true
-          tags: |
-            ghcr.io/${{ steps.repo.outputs.name }}/qurban-backend:latest
-            ghcr.io/${{ steps.repo.outputs.name }}/qurban-backend:${{ github.sha }}
+          tags: ${{ steps.meta-backend.outputs.tags }}
+          labels: ${{ steps.meta-backend.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # Build & push frontend (production Dockerfile)
+      # VITE_API_URL kosong → frontend pakai relative URL via Nginx reverse proxy
       - name: Build & push frontend
         uses: docker/build-push-action@v6
         with:
           context: qurban-system/frontend
-          file: qurban-system/frontend/Dockerfile
+          file: qurban-system/frontend/Dockerfile.prod
           push: true
-          build-args: VITE_API_URL=${{ secrets.VITE_API_URL || 'https://api.qurban.local' }}
-          tags: |
-            ghcr.io/${{ steps.repo.outputs.name }}/qurban-frontend:latest
-            ghcr.io/${{ steps.repo.outputs.name }}/qurban-frontend:${{ github.sha }}
+          build-args: VITE_API_URL=""
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          labels: ${{ steps.meta-frontend.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
   # ──────────────────────────────────────────────
-  # Deploy to server via SSH
+  # Deploy to VPS via SSH
   # ──────────────────────────────────────────────
   deploy:
-    name: Deploy to server
+    name: Deploy to VPS
     runs-on: ubuntu-latest
     needs: build-and-push
     environment: production
     steps:
+      - uses: actions/checkout@v4
+
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -92,26 +118,48 @@ jobs:
           port: ${{ secrets.DEPLOY_PORT || 22 }}
           script: |
             set -euo pipefail
-            cd ${{ secrets.DEPLOY_PATH || '/opt/qurban' }}
+            DEPLOY_PATH="${{ secrets.DEPLOY_PATH || '/opt/qurban-system/qurban-system' }}"
+            cd "$DEPLOY_PATH"
 
-            # Pull latest images
-            docker compose pull
+            echo "=== Pull latest images ==="
+            docker compose -f docker-compose.prod.yml pull
 
-            # Rolling restart: backend first, then frontend
-            docker compose up -d --no-deps --build backend
+            echo "=== Rolling restart: backend first ==="
+            docker compose -f docker-compose.prod.yml up -d --no-deps backend
+            sleep 5
+
+            echo "=== Backend health check ==="
+            # Health check via internal network (frontend container can reach backend)
+            docker compose -f docker-compose.prod.yml exec -T frontend \
+              wget -qO- http://backend:8004/api/health || {
+                echo "❌ Backend health check failed"
+                docker compose -f docker-compose.prod.yml logs --tail=50 backend
+                exit 1
+              }
+            echo "✅ Backend healthy"
+
+            echo "=== Restart frontend ==="
+            docker compose -f docker-compose.prod.yml up -d --no-deps frontend
             sleep 3
-            curl -sf http://localhost:8080/api/health || { echo "Backend health check failed"; docker compose logs --tail=50 backend; exit 1; }
 
-            docker compose up -d --no-deps --build frontend
-            sleep 2
-            curl -sf http://localhost:3000/ > /dev/null || { echo "Frontend health check failed"; docker compose logs --tail=50 frontend; exit 1; }
+            echo "=== Frontend proxy check ==="
+            curl -sf http://localhost:3000/api/health > /dev/null || {
+              echo "❌ Frontend proxy check failed"
+              docker compose -f docker-compose.prod.yml logs --tail=50 frontend
+              exit 1
+            }
+            echo "✅ Frontend proxy OK"
 
-            echo "Deployment complete."
-            docker compose ps
+            echo "=== Cleanup old images ==="
+            docker image prune -f
+
+            echo "=== Final status ==="
+            docker compose -f docker-compose.prod.yml ps
+
+            echo "🎉 Deployment complete: ${{ github.sha }}"
 
       - name: Notify on failure
         if: failure()
         run: |
-          echo "::warning::Deployment failed — check SSH logs above"
-          echo "Server: ${{ secrets.DEPLOY_HOST }}"
-          echo "Sha: ${{ github.sha }}"
+          echo "::error::Deployment failed for sha ${{ github.sha }}"
+          echo "Check SSH logs above for details"

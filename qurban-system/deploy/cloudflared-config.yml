@@ -1,0 +1,30 @@
+# ============================================
+# Cloudflare Tunnel Configuration
+# ============================================
+# Letakkan di: /root/.cloudflared/config.yml (atau ~/.cloudflared/config.yml)
+#
+# Setup:
+#   1. Install cloudflared: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/
+#   2. Login: cloudflared tunnel login
+#   3. Create tunnel: cloudflared tunnel create qurban-tunnel
+#   4. Copy tunnel UUID ke field 'tunnel' di bawah
+#   5. Route DNS: cloudflared tunnel route dns qurban-tunnel quralba.dwijacode.my.id
+#   6. Start: cloudflared tunnel run qurban-tunnel
+#   7. (Opsional) Install as systemd service: cloudflared service install
+
+# GANTI dengan tunnel UUID dari output 'cloudflared tunnel create'
+tunnel: <TUNNEL_UUID>
+credentials-file: /root/.cloudflared/<TUNNEL_UUID>.json
+
+# Metrics untuk monitoring (opsional)
+metrics: 127.0.0.1:45678
+
+ingress:
+  # Domain utama → frontend container (localhost:3000)
+  - hostname: quralba.dwijacode.my.id
+    service: http://localhost:3000
+    originRequest:
+      noTLSVerify: true  # Internal traffic, tidak perlu TLS
+
+  # Catch-all: reject traffic yang tidak cocok
+  - service: http_status:404

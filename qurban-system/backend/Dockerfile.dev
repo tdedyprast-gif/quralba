@@ -1,0 +1,23 @@
+# ============================================
+# Dockerfile.dev — Backend Go + Fiber
+# Hot reload dengan CompileDaemon (auto rebuild saat file berubah)
+# ============================================
+
+FROM golang:1.22-alpine
+
+WORKDIR /src
+
+# Install git, bash, dan CompileDaemon untuk hot reload
+RUN apk add --no-cache git bash curl && \
+    go install github.com/githubnemo/CompileDaemon@latest
+
+# Pre-download dependencies (layer caching)
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Debug port (Delve debugger — opsional)
+EXPOSE 8004 2345
+
+# Default: jalankan dengan CompileDaemon (auto rebuild)
+# Gunakan -build="go build -o /tmp/server ./cmd" -command="/tmp/server"
+CMD ["CompileDaemon", "-build=go build -o /tmp/server ./cmd", "-command=/tmp/server", "-directory=.", "-exclude-dir=.git", "-exclude-dir=uploads", "-color=true"]

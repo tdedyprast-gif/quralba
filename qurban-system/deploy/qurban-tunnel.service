@@ -1,0 +1,25 @@
+# ============================================
+# Systemd Service untuk Cloudflare Tunnel
+# ============================================
+# Install:
+#   sudo cp qurban-tunnel.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable qurban-tunnel
+#   sudo systemctl start qurban-tunnel
+#   sudo systemctl status qurban-tunnel
+
+[Unit]
+Description=Cloudflare Tunnel for Qurban System
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+ExecStart=/usr/local/bin/cloudflared tunnel run qurban-tunnel
+Restart=on-failure
+RestartSec=5s
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target

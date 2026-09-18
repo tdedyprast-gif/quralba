@@ -1,32 +1,56 @@
+# ============================================
+# docker-compose.prod.yml — Production Deploy
+# ============================================
+# Arsitektur:
+#   Internet → Nginx (host, SSL 443) → localhost:3000 (frontend container)
+#                                                    ↓
+#                                              Nginx (container)
+#                                                    ↓
+#                                              /api/ → backend:8004 (internal)
+#                                              /ws/  → backend:8004 (internal)
+#                                              /uploads/ → backend:8004
+#                                              /*    → static files (SPA)
+#
+# Backend TIDAK expose port ke host — hanya via internal Docker network.
+# Ini lebih aman: backend hanya bisa diakses lewat frontend container.
+
 services:
   db:
     image: postgres:16-alpine
     container_name: qurban_db
     restart: unless-stopped
-    env_file: .env
+    env_file: .env.production
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-    # ports tidak dibuka ke host — backend akses via internal network
+    # TIDAK expose port ke host — hanya internal network
     volumes:
       - qurban_pg:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
-      interval: 5s
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 5
+      start_period: 10s
+    networks:
+      - qurban_net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   backend:
     build:
       context: ./backend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.prod
     container_name: qurban_backend
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
-    env_file: .env
+    env_file: .env.production
     environment:
       PORT: ${PORT}
       DATABASE_URL: ${DATABASE_URL}
@@ -36,24 +60,44 @@ services:
       DOIT_API_KEY: ${DOIT_API_KEY}
       DOIT_BASE_URL: ${DOIT_BASE_URL}
       DOIT_WEBHOOK_SECRET: ${DOIT_WEBHOOK_SECRET}
-    ports:
-      - "8003:8003"
+    # TIDAK expose port ke host — hanya via internal network
     volumes:
       - qurban_uploads:/app/uploads
+    networks:
+      - qurban_net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.prod
       args:
-        VITE_API_URL: ${VITE_API_URL}
+        VITE_API_URL: ""
     container_name: qurban_frontend
     restart: unless-stopped
     depends_on:
       - backend
+    # Hanya expose ke localhost (127.0.0.1) — Nginx host-level reverse proxy ke sini
     ports:
-      - "3003:80"
+      - "127.0.0.1:3000:80"
+    networks:
+      - qurban_net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   qurban_pg:
+    driver: local
   qurban_uploads:
+    driver: local
+
+networks:
+  qurban_net:
+    driver: bridge

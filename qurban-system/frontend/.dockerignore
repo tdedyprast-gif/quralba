@@ -1,0 +1,12 @@
+# Frontend .dockerignore
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+.git
+*.log
+.vscode/
+.idea/
+*.swp
+.DS_Store

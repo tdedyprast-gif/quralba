@@ -1,0 +1,55 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Documentation
+docs/
+README.md
+*.md
+
+# Logs
+*.log
+build.log
+
+# Backup scripts
+backup-db.sh
+
+# IDE & editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test files
+tests/
+test_reports/
+test_result.md
+*__pycache__*
+*.pyc
+.pytest_cache/
+
+# Legacy / unused projects
+../backend/
+../frontend/
+../tests/
+../test_reports/
+../memory/
+
+# Node modules (frontend)
+frontend/node_modules/
+frontend/dist/
+frontend/.yarn/cache
+
+# Go vendor (backend)
+backend/vendor/
