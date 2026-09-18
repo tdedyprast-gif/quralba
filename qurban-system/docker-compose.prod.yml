@@ -28,7 +28,7 @@ services:
     volumes:
       - qurban_pg:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -83,7 +83,7 @@ services:
       - backend
     # Hanya expose ke localhost (127.0.0.1) — Nginx host-level reverse proxy ke sini
     ports:
-      - "127.0.0.1:3000:80"
+      - "127.0.0.1:3002:80"
     networks:
       - qurban_net
     logging:
