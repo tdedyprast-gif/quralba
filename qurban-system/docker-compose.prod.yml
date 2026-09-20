@@ -31,7 +31,7 @@ services:
     volumes:
       - qurban_pg:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD", "wget", "-qO-", "http://127.0.0.1:8004/api/health" ]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
       interval: 10s
       timeout: 5s
       retries: 5
