@@ -41,10 +41,10 @@ export default function QRScanner() {
           await scannerRef.current.pause(true)
           await submitScan(decodedText)
           setTimeout(async () => {
-            try { await scannerRef.current.resume() } catch {}
+            try { await scannerRef.current.resume() } catch { }
           }, 1500)
         },
-        () => {}
+        () => { }
       )
       setRunning(true)
     } catch (err) {
@@ -54,8 +54,8 @@ export default function QRScanner() {
 
   const stop = async () => {
     if (scannerRef.current) {
-      try { await scannerRef.current.stop() } catch {}
-      try { await scannerRef.current.clear() } catch {}
+      try { await scannerRef.current.stop() } catch { }
+      try { await scannerRef.current.clear() } catch { }
       scannerRef.current = null
     }
     setRunning(false)
@@ -89,20 +89,20 @@ export default function QRScanner() {
 
       <div className="card">
         <div id="qr-reader" className="w-full rounded-lg overflow-hidden bg-slate-900 min-h-[300px] flex items-center justify-center text-white">
-          {!running && <div className="text-slate-400 text-sm">Kamera belum aktif</div>}
+          {!running && <div className="text-slate-400 text-sm">Fiture ini masih dalam pengembangan gunakan fasilitas upload gambar</div>}
         </div>
         <div className="flex gap-3 mt-4">
           {!running ? (
-            <button data-testid="scan-start" onClick={start} className="btn-primary flex-1 justify-center">▶ Mulai Kamera</button>
+            <button data-testid="scan-start" onClick={start} className="btn-danger flex-1 justify-center">▶ Dalam pengembangan</button>
           ) : (
             <button data-testid="scan-stop" onClick={stop} className="btn-outline flex-1 justify-center">■ Berhenti Kamera</button>
           )}
-          <input 
-            type="file" 
-            accept="image/*" 
-            id="qr-upload" 
-            className="hidden" 
-            onChange={handleFileUpload} 
+          <input
+            type="file"
+            accept="image/*"
+            id="qr-upload"
+            className="hidden"
+            onChange={handleFileUpload}
           />
           <label htmlFor="qr-upload" className="btn-outline flex-1 justify-center cursor-pointer flex items-center text-center m-0">
             📁 Upload Gambar QR
