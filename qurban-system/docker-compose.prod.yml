@@ -28,7 +28,7 @@ services:
     volumes:
       - qurban_pg:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
+      test: [ "CMD", "wget", "-qO-", "http://127.0.0.1:8004/api/health" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -87,6 +87,12 @@ services:
       - "127.0.0.1:3003:80"
     networks:
       - qurban_net
+    healthcheck:
+      test: [ "CMD", "wget", "-qO-", "http://127.0.0.1/" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     logging:
       driver: "json-file"
       options:

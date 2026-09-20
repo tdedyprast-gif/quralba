@@ -26,12 +26,7 @@ export default function Peta() {
     return () => ws.close()
   }, [])
 
-  const center = useMemo(() => {
-    if (items.length === 0) return CENTER_PACITAN
-    const lat = items.reduce((s, i) => s + i.latitude, 0) / items.length
-    const lng = items.reduce((s, i) => s + i.longitude, 0) / items.length
-    return [lat, lng]
-  }, [items])
+  const center = CENTER_PACITAN
 
   const sudah = items.filter(i => i.diambil).length
   const belum = items.length - sudah

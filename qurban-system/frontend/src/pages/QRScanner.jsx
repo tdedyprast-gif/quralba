@@ -66,6 +66,20 @@ export default function QRScanner() {
     if (manual.trim()) { submitScan(manual.trim()); setManual('') }
   }
 
+  const handleFileUpload = async (e) => {
+    if (!e.target.files || e.target.files.length === 0) return
+    const file = e.target.files[0]
+    const html5QrCode = new Html5Qrcode('qr-reader')
+    try {
+      const decodedText = await html5QrCode.scanFile(file, false)
+      await submitScan(decodedText)
+    } catch (err) {
+      toast.error('Gagal membaca QR dari gambar, pastikan gambar jelas.')
+    } finally {
+      e.target.value = ''
+    }
+  }
+
   return (
     <div className="max-w-2xl mx-auto space-y-6" data-testid="scanner-page">
       <div>
@@ -79,10 +93,20 @@ export default function QRScanner() {
         </div>
         <div className="flex gap-3 mt-4">
           {!running ? (
-            <button data-testid="scan-start" onClick={start} className="btn-primary flex-1 justify-center">▶ Mulai Scan</button>
+            <button data-testid="scan-start" onClick={start} className="btn-primary flex-1 justify-center">▶ Mulai Kamera</button>
           ) : (
-            <button data-testid="scan-stop" onClick={stop} className="btn-outline flex-1 justify-center">■ Berhenti</button>
+            <button data-testid="scan-stop" onClick={stop} className="btn-outline flex-1 justify-center">■ Berhenti Kamera</button>
           )}
+          <input 
+            type="file" 
+            accept="image/*" 
+            id="qr-upload" 
+            className="hidden" 
+            onChange={handleFileUpload} 
+          />
+          <label htmlFor="qr-upload" className="btn-outline flex-1 justify-center cursor-pointer flex items-center text-center m-0">
+            📁 Upload Gambar QR
+          </label>
         </div>
       </div>
 
